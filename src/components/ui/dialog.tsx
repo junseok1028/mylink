@@ -1,71 +1,45 @@
 'use client';
 
 import * as React from 'react';
+import { Dialog as BaseDialog } from '@base-ui/react/dialog';
 import { X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
-interface DialogProps {
+export interface DialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   children: React.ReactNode;
 }
 
 export function Dialog({ open, onOpenChange, children }: DialogProps) {
-  React.useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        onOpenChange(false);
-      }
-    };
-
-    if (open) {
-      document.body.style.overflow = 'hidden';
-      window.addEventListener('keydown', handleKeyDown);
-    }
-
-    return () => {
-      document.body.style.overflow = 'unset';
-      window.removeEventListener('keydown', handleKeyDown);
-    };
-  }, [open, onOpenChange]);
-
-  if (!open) return null;
-
   return (
-    <div
-      role="dialog"
-      aria-modal="true"
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/45 backdrop-blur-[2px] transition-all animate-in fade-in duration-200"
-      onClick={(e) => {
-        if (e.target === e.currentTarget) {
-          onOpenChange(false);
-        }
-      }}
-    >
-      {children}
-    </div>
+    <BaseDialog.Root open={open} onOpenChange={onOpenChange}>
+      <BaseDialog.Portal>
+        <BaseDialog.Backdrop className="fixed inset-0 z-50 bg-black/45 backdrop-blur-[2px] transition-all data-[ending-style]:opacity-0 data-[starting-style]:opacity-0" />
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 pointer-events-none">
+          {children}
+        </div>
+      </BaseDialog.Portal>
+    </BaseDialog.Root>
   );
 }
 
 export function DialogContent({
   className,
   children,
-  onClose,
 }: {
   className?: string;
   children: React.ReactNode;
-  onClose?: () => void;
 }) {
   return (
-    <div
+    <BaseDialog.Popup
       className={cn(
-        'relative w-full max-w-md rounded-3xl bg-white p-6 shadow-2xl border border-gray-100 transition-all duration-200 animate-in zoom-in-95',
+        'pointer-events-auto relative w-full max-w-md rounded-3xl bg-white p-6 shadow-2xl border border-gray-100 outline-none transition-all duration-200 data-[ending-style]:scale-95 data-[ending-style]:opacity-0 data-[starting-style]:scale-95 data-[starting-style]:opacity-0',
         className
       )}
-      onClick={(e) => e.stopPropagation()}
     >
       {children}
-    </div>
+    </BaseDialog.Popup>
   );
 }
 
@@ -91,9 +65,14 @@ export function DialogTitle({
   children: React.ReactNode;
 }) {
   return (
-    <h2 className={cn('text-lg font-bold text-[#191F28] tracking-tight leading-snug', className)}>
+    <BaseDialog.Title
+      className={cn(
+        'text-lg font-bold text-[#191F28] tracking-tight leading-snug',
+        className
+      )}
+    >
       {children}
-    </h2>
+    </BaseDialog.Title>
   );
 }
 
@@ -105,9 +84,11 @@ export function DialogDescription({
   children: React.ReactNode;
 }) {
   return (
-    <p className={cn('text-xs text-[#8B95A1] leading-relaxed', className)}>
+    <BaseDialog.Description
+      className={cn('text-xs text-[#8B95A1] leading-relaxed', className)}
+    >
       {children}
-    </p>
+    </BaseDialog.Description>
   );
 }
 
@@ -119,30 +100,31 @@ export function DialogFooter({
   children: React.ReactNode;
 }) {
   return (
-    <div className={cn('flex items-center justify-end gap-2 pt-4 mt-2 border-t border-gray-100', className)}>
+    <div
+      className={cn(
+        'flex items-center justify-end gap-2 pt-4 mt-2 border-t border-gray-100',
+        className
+      )}
+    >
       {children}
     </div>
   );
 }
 
 export function DialogClose({
-  onClose,
   className,
 }: {
-  onClose?: () => void;
   className?: string;
 }) {
   return (
-    <button
-      type="button"
-      onClick={onClose}
+    <BaseDialog.Close
       className={cn(
-        'absolute right-4 top-4 rounded-full p-1.5 text-[#8B95A1] hover:text-[#191F28] hover:bg-gray-100 transition-colors focus:outline-none focus:ring-2 focus:ring-gray-200',
+        'absolute right-4 top-4 rounded-full p-1.5 text-[#8B95A1] hover:text-[#191F28] hover:bg-gray-100 transition-colors focus:outline-none focus:ring-2 focus:ring-gray-200 cursor-pointer',
         className
       )}
       aria-label="닫기"
     >
       <X className="h-4 w-4" />
-    </button>
+    </BaseDialog.Close>
   );
 }

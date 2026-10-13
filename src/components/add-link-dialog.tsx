@@ -1,6 +1,9 @@
 'use client';
 
 import * as React from 'react';
+import { useForm, Controller } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import * as z from 'zod';
 import {
   Dialog,
   DialogContent,
@@ -15,6 +18,55 @@ import { Input } from '@/components/ui/input';
 import { LinkItem } from '@/lib/types';
 import { PlusCircle, Globe, Type, FileText, FolderPlus, AlertCircle } from 'lucide-react';
 
+const EMOJI_PRESETS = ['🚀', '🎨', '📖', '📺', '💬', '💻', '🔗', '⭐'];
+
+// 1. Zod 스키마 정의
+export const addLinkSchema = z
+  .object({
+    title: z
+      .string()
+      .min(1, '링크 제목을 입력해주세요.')
+      .max(60, '링크 제목은 최대 60자까지 입력 가능합니다.'),
+    url: z
+      .string()
+      .min(1, '연결할 URL을 입력해주세요.')
+      .refine(
+        (val) => {
+          const trimmed = val.trim();
+          if (trimmed.startsWith('mailto:')) return true;
+          // http 또는 https 프로토콜이 없는 경우 붙여서 유효한 URL인지 확인
+          const testUrl = /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
+          try {
+            const parsed = new URL(testUrl);
+            return parsed.hostname.includes('.');
+          } catch {
+            return false;
+          }
+        },
+        { message: '올바른 형식의 웹 주소(URL)를 입력해주세요.' }
+      ),
+    description: z
+      .string()
+      .max(120, '상세 설명은 최대 120자까지 입력 가능합니다.')
+      .optional(),
+    isCustomSection: z.boolean(),
+    selectedSection: z.string(),
+    customSection: z.string().optional(),
+  })
+  .superRefine((data, ctx) => {
+    if (data.isCustomSection) {
+      if (!data.customSection || !data.customSection.trim()) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['customSection'],
+          message: '새 섹션 이름을 입력해주세요.',
+        });
+      }
+    }
+  });
+
+export type AddLinkFormValues = z.infer<typeof addLinkSchema>;
+
 interface AddLinkDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -23,8 +75,6 @@ interface AddLinkDialogProps {
   defaultSection?: string;
 }
 
-const EMOJI_PRESETS = ['🚀', '🎨', '📖', '📺', '💬', '💻', '🔗', '⭐'];
-
 export function AddLinkDialog({
   open,
   onOpenChange,
@@ -32,68 +82,59 @@ export function AddLinkDialog({
   onAddLink,
   defaultSection,
 }: AddLinkDialogProps) {
-  const [title, setTitle] = React.useState('');
-  const [url, setUrl] = React.useState('');
-  const [description, setDescription] = React.useState('');
-  const [selectedSection, setSelectedSection] = React.useState(
-    defaultSection || existingSections[0] || '🚀 주요 프로젝트 & 포트폴리오'
-  );
-  const [customSection, setCustomSection] = React.useState('');
-  const [isCustomSection, setIsCustomSection] = React.useState(false);
-  const [errors, setErrors] = React.useState<{ title?: string; url?: string }>({});
+  const initialSection = defaultSection || existingSections[0] || '🚀 주요 프로젝트 & 포트폴리오';
 
-  // Reset form when dialog opens
+  const {
+    register,
+    handleSubmit,
+    setValue,
+    watch,
+    reset,
+    control,
+    formState: { errors, isSubmitting },
+  } = useForm<AddLinkFormValues>({
+    resolver: zodResolver(addLinkSchema),
+    defaultValues: {
+      title: '',
+      url: '',
+      description: '',
+      isCustomSection: false,
+      selectedSection: initialSection,
+      customSection: '',
+    },
+    mode: 'onChange',
+  });
+
+  const titleValue = watch('title');
+  const isCustomSection = watch('isCustomSection');
+  const selectedSection = watch('selectedSection');
+
+  // 다이얼로그 열릴 때 폼 초기화
   React.useEffect(() => {
     if (open) {
-      setTitle('');
-      setUrl('');
-      setDescription('');
-      setSelectedSection(defaultSection || existingSections[0] || '🚀 주요 프로젝트 & 포트폴리오');
-      setCustomSection('');
-      setIsCustomSection(false);
-      setErrors({});
+      reset({
+        title: '',
+        url: '',
+        description: '',
+        isCustomSection: false,
+        selectedSection: defaultSection || existingSections[0] || '🚀 주요 프로젝트 & 포트폴리오',
+        customSection: '',
+      });
     }
-  }, [open, existingSections, defaultSection]);
+  }, [open, defaultSection, existingSections, reset]);
 
   const handleEmojiClick = (emoji: string) => {
-    // If title already starts with an emoji, or just prepend
-    if (!title.startsWith(emoji)) {
-      setTitle((prev) => `${emoji} ${prev.trimStart()}`);
+    const currentTitle = titleValue || '';
+    if (!currentTitle.startsWith(emoji)) {
+      setValue('title', `${emoji} ${currentTitle.trimStart()}`, {
+        shouldValidate: true,
+        shouldDirty: true,
+      });
     }
   };
 
-  const validate = () => {
-    const newErrors: { title?: string; url?: string } = {};
-
-    if (!title.trim()) {
-      newErrors.title = '링크 제목을 입력해주세요.';
-    }
-
-    if (!url.trim()) {
-      newErrors.url = '연결할 URL을 입력해주세요.';
-    } else {
-      const cleanUrl = url.trim().toLowerCase();
-      // Basic check for URL validity
-      if (
-        !cleanUrl.startsWith('http://') &&
-        !cleanUrl.startsWith('https://') &&
-        !cleanUrl.startsWith('mailto:') &&
-        !cleanUrl.includes('.')
-      ) {
-        newErrors.url = '올바른 웹 주소(URL)를 입력해주세요.';
-      }
-    }
-
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
-  };
-
-  const handleSubmit = (e?: React.FormEvent) => {
-    if (e) e.preventDefault();
-
-    if (!validate()) return;
-
-    let finalUrl = url.trim();
+  const onSubmit = (data: AddLinkFormValues) => {
+    let finalUrl = data.url.trim();
     if (
       !finalUrl.startsWith('http://') &&
       !finalUrl.startsWith('https://') &&
@@ -102,14 +143,14 @@ export function AddLinkDialog({
       finalUrl = `https://${finalUrl}`;
     }
 
-    const finalSection = isCustomSection
-      ? customSection.trim() || '기타'
-      : selectedSection;
+    const finalSection = data.isCustomSection
+      ? (data.customSection?.trim() || '기타')
+      : data.selectedSection;
 
     onAddLink({
-      title: title.trim(),
+      title: data.title.trim(),
       url: finalUrl,
-      description: description.trim() || undefined,
+      description: data.description?.trim() || undefined,
       section: finalSection,
     });
 
@@ -119,7 +160,7 @@ export function AddLinkDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
-        <DialogClose onClose={() => onOpenChange(false)} />
+        <DialogClose />
 
         <DialogHeader>
           <div className="flex items-center gap-2 mb-1">
@@ -133,7 +174,7 @@ export function AddLinkDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-4 pt-1">
+        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 pt-1" noValidate>
           {/* 1. 제목 입력 */}
           <div className="space-y-1.5">
             <label className="text-xs font-semibold text-[#333D4B] flex items-center gap-1.5">
@@ -142,17 +183,13 @@ export function AddLinkDialog({
             </label>
             <Input
               placeholder="예: 🎨 마이링크 (MyLink) 서비스"
-              value={title}
-              onChange={(e) => {
-                setTitle(e.target.value);
-                if (errors.title) setErrors((prev) => ({ ...prev, title: undefined }));
-              }}
+              {...register('title')}
               className={errors.title ? 'border-red-400 focus:ring-red-400/20' : ''}
               autoFocus
             />
             {errors.title && (
               <p className="text-[11px] text-red-500 flex items-center gap-1 font-medium mt-1">
-                <AlertCircle className="w-3 h-3" /> {errors.title}
+                <AlertCircle className="w-3 h-3" /> {errors.title.message}
               </p>
             )}
 
@@ -164,7 +201,7 @@ export function AddLinkDialog({
                   key={emoji}
                   type="button"
                   onClick={() => handleEmojiClick(emoji)}
-                  className="px-2 py-0.5 text-xs rounded-lg bg-gray-100 hover:bg-gray-200 active:scale-95 transition-transform"
+                  className="px-2 py-0.5 text-xs rounded-lg bg-gray-100 hover:bg-gray-200 active:scale-95 transition-transform cursor-pointer"
                 >
                   {emoji}
                 </button>
@@ -181,16 +218,12 @@ export function AddLinkDialog({
             <Input
               type="text"
               placeholder="https://github.com/..."
-              value={url}
-              onChange={(e) => {
-                setUrl(e.target.value);
-                if (errors.url) setErrors((prev) => ({ ...prev, url: undefined }));
-              }}
+              {...register('url')}
               className={errors.url ? 'border-red-400 focus:ring-red-400/20' : ''}
             />
             {errors.url && (
               <p className="text-[11px] text-red-500 flex items-center gap-1 font-medium mt-1">
-                <AlertCircle className="w-3 h-3" /> {errors.url}
+                <AlertCircle className="w-3 h-3" /> {errors.url.message}
               </p>
             )}
             <p className="text-[11px] text-[#8B95A1]">
@@ -206,9 +239,14 @@ export function AddLinkDialog({
             </label>
             <Input
               placeholder="예: 토스 디자인 시스템 기반의 바이오 프로필 서비스"
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
+              {...register('description')}
+              className={errors.description ? 'border-red-400 focus:ring-red-400/20' : ''}
             />
+            {errors.description && (
+              <p className="text-[11px] text-red-500 flex items-center gap-1 font-medium mt-1">
+                <AlertCircle className="w-3 h-3" /> {errors.description.message}
+              </p>
+            )}
           </div>
 
           {/* 4. 섹션 선택 */}
@@ -223,10 +261,10 @@ export function AddLinkDialog({
                   key={sec}
                   type="button"
                   onClick={() => {
-                    setSelectedSection(sec);
-                    setIsCustomSection(false);
+                    setValue('selectedSection', sec);
+                    setValue('isCustomSection', false, { shouldValidate: true });
                   }}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all ${
+                  className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
                     !isCustomSection && selectedSection === sec
                       ? 'bg-blue-600 text-white shadow-xs'
                       : 'bg-gray-100 text-[#4E5968] hover:bg-gray-200/70'
@@ -237,8 +275,10 @@ export function AddLinkDialog({
               ))}
               <button
                 type="button"
-                onClick={() => setIsCustomSection(true)}
-                className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all ${
+                onClick={() => {
+                  setValue('isCustomSection', true, { shouldValidate: true });
+                }}
+                className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
                   isCustomSection
                     ? 'bg-blue-600 text-white shadow-xs'
                     : 'bg-gray-100 text-[#4E5968] hover:bg-gray-200/70'
@@ -249,13 +289,18 @@ export function AddLinkDialog({
             </div>
 
             {isCustomSection && (
-              <div className="pt-1 animate-in fade-in">
+              <div className="pt-1 animate-in fade-in space-y-1">
                 <Input
                   placeholder="새 섹션 이름 (예: 💼 경력 & 프로젝트)"
-                  value={customSection}
-                  onChange={(e) => setCustomSection(e.target.value)}
+                  {...register('customSection')}
+                  className={errors.customSection ? 'border-red-400 focus:ring-red-400/20' : ''}
                   autoFocus
                 />
+                {errors.customSection && (
+                  <p className="text-[11px] text-red-500 flex items-center gap-1 font-medium mt-1">
+                    <AlertCircle className="w-3 h-3" /> {errors.customSection.message}
+                  </p>
+                )}
               </div>
             )}
           </div>
@@ -268,7 +313,11 @@ export function AddLinkDialog({
             >
               취소
             </Button>
-            <Button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white">
+            <Button
+              type="submit"
+              disabled={isSubmitting}
+              className="bg-blue-600 hover:bg-blue-700 text-white cursor-pointer"
+            >
               추가하기
             </Button>
           </DialogFooter>
