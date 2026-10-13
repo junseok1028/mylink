@@ -5,13 +5,12 @@ const LINKS_KEY = 'mylink_links';
 
 export const INITIAL_PROFILE: Profile = {
   username: 'creator_kim',
-  display_name: '홍길동',
-  handle: 'Gildong',
-  bio: '풀스택 개발자 & 크리에이터 🚀',
+  display_name: '김크리에이터',
+  bio: '안녕하세요! 마이링크에 오신 것을 환영합니다 🚀',
   avatar_url: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400',
   socials: {
-    github: 'https://github.com',
     instagram: 'https://instagram.com',
+    youtube: 'https://youtube.com',
     email: 'mailto:creator@example.com',
   },
 };
@@ -19,39 +18,24 @@ export const INITIAL_PROFILE: Profile = {
 export const INITIAL_LINKS: LinkItem[] = [
   {
     id: 'link_1',
-    title: '🎨 마이링크 (MyLink) 서비스',
-    description: '토스 디자인 시스템 기반의 바이오 프로필 서비스',
-    url: 'https://github.com',
-    section: '🚀 주요 프로젝트 & 포트폴리오',
+    title: '🎬 유튜브 최신 영상 보러가기',
+    url: 'https://youtube.com',
     is_active: true,
     display_order: 1,
   },
   {
     id: 'link_2',
-    title: '📝 개발 블로그 및 팁 (Velog)',
-    description: '웹 개발 관련 소소한 이야기와 지식을 공유합니다',
-    url: 'https://velog.io',
-    section: '🚀 주요 프로젝트 & 포트폴리오',
+    title: '🛍️ 공식 스토어 구경하기',
+    url: 'https://smartstore.naver.com',
     is_active: true,
     display_order: 2,
   },
   {
     id: 'link_3',
-    title: '📺 개발자 홍길동 유튜브 채널',
-    description: '신규 프레임워크 리뷰 및 코딩 시연 라이브',
-    url: 'https://youtube.com',
-    section: '📣 소셜 채널',
+    title: '💬 1:1 오픈카카오톡 문의',
+    url: 'https://open.kakao.com',
     is_active: true,
     display_order: 3,
-  },
-  {
-    id: 'link_4',
-    title: '💬 1:1 오픈채팅방',
-    description: '협업 문의 및 질문을 언제든 환영합니다',
-    url: 'https://open.kakao.com',
-    section: '📣 소셜 채널',
-    is_active: true,
-    display_order: 4,
   },
 ];
 
