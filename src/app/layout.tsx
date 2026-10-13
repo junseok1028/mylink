@@ -17,7 +17,11 @@ export const metadata: Metadata = {
   description: "소프트웨어 엔지니어 안준석의 프로필 페이지",
 };
 
-export default function RootLayout({ children }: LayoutProps<"/">) {
+export default function RootLayout({
+  children,
+}: Readonly<{
+  children: React.ReactNode;
+}>) {
   return (
     <html
       lang="ko"
