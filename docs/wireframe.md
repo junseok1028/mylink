@@ -21,7 +21,7 @@
 |                   +-------------------------+                                   |
 |                                                                                 |
 |                        안준석  (Junseok)            | <-- Name & Handle         |
-|                  "풀스택 개발자 & 크리에이터 🚀"        | <-- Bio (한 줄 소개)       |
+|   "Better Code, Better Tomorrow. 기술로 문제를 해결합니다 💻" | <-- Bio (개발자 소개글)    |
 |                                                                                 |
 |              [ GitHub ]   [ Insta ]   [ Email ]     | <-- Social Badges         |
 |                                                           (Pill Buttons)        |
@@ -63,9 +63,9 @@
 | :--- | :--- | :--- | :--- |
 | **Top Bar** | 타이틀 | `[토스 프로필]` | 좌측 상단 정렬, 14px Semibold (`#191F28`) |
 | **Top Bar** | 공유 버튼 | `[ ↗ ]` | 우측 상단 액션 버튼, Web Share API 및 클립보드 복사 연동 |
-| **Profile** | 프로필 이미지 | Avatar (80×80px) | `w-20 h-20 rounded-full`, 원형 카드 마스크 |
+| **Profile** | 프로필 이미지 | Avatar (`/avatar.jpg`, 80×80px) | `w-20 h-20 rounded-full`, 3D 개발자 아바타 |
 | **Profile** | 이름 & 핸들 | `안준석 (Junseok)` | 20px Bold (`#191F28`) + 연회색 서브텍스트 (`#8B95A1`) |
-| **Profile** | 한 줄 소개 | `"풀스택 개발자 & 크리에이터 🚀"` | 14px Regular (`#4E5968`), 가운데 정렬 |
+| **Profile** | 한 줄 소개 | `"Better Code, Better Tomorrow. 기술로 일상의 문제를 해결하는 풀스택 개발자입니다 💻"` | 14px Regular (`#4E5968`), 가독성 중심 줄바꿈 |
 | **Profile** | 소셜 뱃지 | `[ GitHub ] [ Insta ] [ Email ]` | Full Pill 버튼 (`rounded-full`), 연회색 배경 (`bg-gray-100`) |
 | **Section 1** | 섹션 헤더 | `🚀 주요 프로젝트 & 포트폴리오` | 14px Bold (`#191F28`), 좌측 여백 및 상단 마진 |
 | **Link Card 1** | 링크 카드 | 타이틀: `🎨 마이링크 (MyLink) 서비스`<br/>설명: `토스 디자인 시스템 기반의 바이오 프로필 서비스`<br/>액션: `→` | shadcn/ui Card 기반, `rounded-2xl`, `bg-white`, `border-gray-100`, hover/active 효과 |

@@ -1,14 +1,14 @@
 import { Profile, LinkItem } from './types';
 
-const PROFILE_KEY = 'mylink_profile_v2';
-const LINKS_KEY = 'mylink_links_v2';
+const PROFILE_KEY = 'mylink_profile_v3';
+const LINKS_KEY = 'mylink_links_v3';
 
 export const INITIAL_PROFILE: Profile = {
   username: 'junseok1028',
   display_name: '안준석',
   handle: 'Junseok',
-  bio: '풀스택 개발자 & 크리에이터 🚀',
-  avatar_url: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400',
+  bio: 'Better Code, Better Tomorrow. 기술로 일상의 문제를 해결하는 풀스택 개발자입니다 💻',
+  avatar_url: '/avatar.jpg',
   socials: {
     github: 'https://github.com/junseok1028/mylink',
     instagram: 'https://instagram.com',

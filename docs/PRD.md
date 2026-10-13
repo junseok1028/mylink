@@ -49,7 +49,7 @@ flowchart LR
 |                   +-------------------------+                                   |
 |                                                                                 |
 |                        안준석  (Junseok)            | <-- Name & Handle         |
-|                  "풀스택 개발자 & 크리에이터 🚀"        | <-- Bio (한 줄 소개)       |
+|   "Better Code, Better Tomorrow. 기술로 문제를 해결합니다 💻" | <-- Bio (개발자 소개글)    |
 |                                                                                 |
 |              [ GitHub ]   [ Insta ]   [ Email ]     | <-- Social Badges         |
 |                                                           (Pill Buttons)        |
@@ -177,8 +177,8 @@ flowchart TD
     "username": "junseok1028",
     "display_name": "안준석",
     "handle": "Junseok",
-    "bio": "풀스택 개발자 & 크리에이터 🚀",
-    "avatar_url": "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400",
+    "bio": "Better Code, Better Tomorrow. 기술로 일상의 문제를 해결하는 풀스택 개발자입니다 💻",
+    "avatar_url": "/avatar.jpg",
     "socials": {
       "github": "https://github.com/junseok1028/mylink",
       "instagram": "https://instagram.com",
