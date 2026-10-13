@@ -1,225 +1,300 @@
 'use client';
 
-import './toss.css';
-import Image from 'next/image';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { Profile, LinkItem } from '@/lib/types';
+import {
+  getStoredProfile,
+  saveStoredProfile,
+  getStoredLinks,
+  saveStoredLinks,
+  INITIAL_PROFILE,
+  INITIAL_LINKS,
+} from '@/lib/storage';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Card } from '@/components/ui/card';
+import { LinkCard } from '@/components/link-card';
+import { Share2, Github, Instagram, Mail, X } from 'lucide-react';
 
 export default function Page() {
-  const [copied, setCopied] = useState(false);
+  const [profile, setProfile] = useState<Profile>(INITIAL_PROFILE);
+  const [links, setLinks] = useState<LinkItem[]>(INITIAL_LINKS);
+  const [isEditing, setIsEditing] = useState(false);
+  const [toastVisible, setToastVisible] = useState(false);
+  const [toastMessage, setToastMessage] = useState('');
 
-  const handleCopyEmail = () => {
-    navigator.clipboard.writeText('ahnjs4291@gmail.com');
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2500);
+  // Edit form state
+  const [editProfile, setEditProfile] = useState<Profile>(INITIAL_PROFILE);
+  const [editLinks, setEditLinks] = useState<LinkItem[]>(INITIAL_LINKS);
+  const [newTitle, setNewTitle] = useState('');
+  const [newDescription, setNewDescription] = useState('');
+  const [newUrl, setNewUrl] = useState('');
+  const [newSection, setNewSection] = useState('');
+
+  useEffect(() => {
+    setProfile(getStoredProfile());
+    setLinks(getStoredLinks());
+  }, []);
+
+  const showToast = (msg: string) => {
+    setToastMessage(msg);
+    setToastVisible(true);
+    setTimeout(() => setToastVisible(false), 2500);
   };
 
-  const techStack = [
-    'Next.js 14', 'React 18', 'TypeScript', 'Tailwind CSS',
-    'Node.js', 'Git & GitHub', 'Clean Architecture', 'Responsive UI',
-  ];
+  const handleShare = () => {
+    if (navigator.share) {
+      navigator.share({ title: profile.display_name, url: window.location.href });
+    } else {
+      navigator.clipboard.writeText(window.location.href);
+      showToast('링크가 복사되었습니다.');
+    }
+  };
 
-  const values = [
-    {
-      num: '01',
-      title: '문제 해결 중심',
-      en: 'Problem Solver',
-      desc: '단순한 코드 타이핑을 넘어 본질적인 사용자의 불편과 비즈니스 문제를 집요하게 파고들어 해결해요.',
-    },
-    {
-      num: '02',
-      title: '직관적인 사용자 경험',
-      en: 'Intuitive UX',
-      desc: '디테일한 인터랙션과 타협 없는 사용성을 통해 누구나 즐겁고 직관적으로 쓸 수 있는 화면을 만들어요.',
-    },
-    {
-      num: '03',
-      title: '지속 가능한 클린 코드',
-      en: 'Clean Code',
-      desc: '가독성과 확장성을 최우선으로 고려하며, 동료와 미래의 내가 이해하기 쉬운 견고한 구조를 구축해요.',
-    },
-  ];
+  const handleOpenEditor = () => {
+    setEditProfile({ ...profile });
+    setEditLinks([...links]);
+    setIsEditing(true);
+  };
+
+  const handleSaveAll = () => {
+    setProfile(editProfile);
+    saveStoredProfile(editProfile);
+    setLinks(editLinks);
+    saveStoredLinks(editLinks);
+    setIsEditing(false);
+    showToast('변경사항이 저장되었습니다.');
+  };
+
+  const handleAddLink = () => {
+    if (!newTitle.trim() || !newUrl.trim()) return;
+    const newItem: LinkItem = {
+      id: `link_${Date.now()}`,
+      title: newTitle.trim(),
+      description: newDescription.trim() || undefined,
+      url: newUrl.trim(),
+      section: newSection.trim() || undefined,
+      is_active: true,
+      display_order: editLinks.length + 1,
+    };
+    setEditLinks([...editLinks, newItem]);
+    setNewTitle('');
+    setNewDescription('');
+    setNewUrl('');
+    setNewSection('');
+  };
+
+  const toggleLinkActive = (id: string) => {
+    setEditLinks(editLinks.map(l => l.id === id ? { ...l, is_active: !l.is_active } : l));
+  };
+
+  const deleteLink = (id: string) => {
+    setEditLinks(editLinks.filter(l => l.id !== id));
+  };
+
+  const updateLink = (id: string, field: keyof LinkItem, value: string) => {
+    setEditLinks(editLinks.map(l => l.id === id ? { ...l, [field]: value } : l));
+  };
+
+  // Group active links by section
+  const activeLinks = links.filter(l => l.is_active);
+  const sections = Array.from(new Set(activeLinks.map(l => l.section || '기타')));
 
   return (
-    <div className="tds-wrapper">
-
-      {/* ── TopBar ── */}
-      <header className="tds-topbar">
-        <div className="tds-topbar-logo">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="https://getdesign.kr/logos/toss.png" alt="logo" />
-          <span className="tds-topbar-title">안준석 · 포트폴리오</span>
+    <div className="min-h-screen bg-gray-50">
+      {/* ── Top Bar ── */}
+      <header className="sticky top-0 z-10 bg-white border-b border-gray-100 px-4 py-3 flex justify-between items-center max-w-xl mx-auto">
+        <span className="text-sm font-semibold text-gray-800">토스 프로필</span>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={handleShare}
+            className="p-2 rounded-full hover:bg-gray-100 transition-colors"
+            aria-label="공유"
+          >
+            <Share2 className="h-5 w-5 text-gray-600" />
+          </button>
+          <Button size="sm" variant="outline" onClick={handleOpenEditor}>
+            편집
+          </Button>
         </div>
-        <span className="tds-chip tds-chip-brand">Software Engineer</span>
       </header>
 
-      {/* ── Main card ── */}
-      <main className="tds-card">
-
-        {/* Banner */}
-        <div className="tds-banner">
-          <Image
-            src="/banner.jpg"
-            alt="프로필 배너"
-            fill
-            priority
-            style={{ objectFit: 'cover' }}
+      <main className="max-w-xl mx-auto px-4 pb-16 pt-6 space-y-6">
+        {/* ── Profile Section ── */}
+        <section className="flex flex-col items-center gap-3 pt-2">
+          {/* Avatar */}
+          <img
+            src={profile.avatar_url}
+            alt={profile.display_name}
+            className="w-20 h-20 rounded-full object-cover border-2 border-gray-100"
           />
-        </div>
-
-        {/* Body */}
-        <div className="tds-body">
-
-          {/* Avatar + CTA */}
-          <div className="tds-avatar-row">
-            <div className="tds-avatar">
-              <Image
-                src="/avatar.jpg"
-                alt="안준석 프로필 사진"
-                fill
-                priority
-                style={{ objectFit: 'cover' }}
-              />
-            </div>
-            <div className="tds-actions">
+          {/* Name & Handle */}
+          <div className="text-center">
+            <h1 className="text-xl font-bold text-gray-900">{profile.display_name}</h1>
+            {profile.handle && (
+              <p className="text-sm text-gray-400">({profile.handle})</p>
+            )}
+            <p className="text-sm text-gray-600 mt-1">{profile.bio}</p>
+          </div>
+          {/* Social Badges — Pill Buttons */}
+          <div className="flex flex-wrap justify-center gap-2 mt-1">
+            {profile.socials.github && (
               <a
-                href="https://github.com/junseok1028"
+                href={profile.socials.github}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="tds-btn tds-btn-secondary"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-gray-100 hover:bg-gray-200 text-xs font-medium text-gray-700 transition-colors"
               >
-                GitHub
+                <Github className="h-3.5 w-3.5" /> GitHub
               </a>
-              <button
-                type="button"
-                onClick={handleCopyEmail}
-                className="tds-btn tds-btn-primary"
+            )}
+            {profile.socials.instagram && (
+              <a
+                href={profile.socials.instagram}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-gray-100 hover:bg-gray-200 text-xs font-medium text-gray-700 transition-colors"
               >
-                이메일 복사하기
-              </button>
+                <Instagram className="h-3.5 w-3.5" /> Insta
+              </a>
+            )}
+            {profile.socials.email && (
+              <a
+                href={profile.socials.email}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-gray-100 hover:bg-gray-200 text-xs font-medium text-gray-700 transition-colors"
+              >
+                <Mail className="h-3.5 w-3.5" /> Email
+              </a>
+            )}
+          </div>
+        </section>
+
+        {/* ── Link Sections ── */}
+        {sections.map(section => (
+          <section key={section}>
+            {/* Section Header */}
+            <h2 className="text-sm font-bold text-gray-800 mb-3 px-1">{section}</h2>
+            <div className="space-y-2">
+              {activeLinks
+                .filter(l => (l.section || '기타') === section)
+                .map(link => (
+                  <LinkCard key={link.id} link={link} />
+                ))}
             </div>
-          </div>
+          </section>
+        ))}
 
-          {/* Name & location */}
-          <h1 className="tds-name">안준석</h1>
-          <p className="tds-name-en">Junseok Ahn</p>
-          <p className="tds-location">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
-              stroke="currentColor" strokeWidth="1.67"
-              strokeLinecap="round" strokeLinejoin="round">
-              <path d="M12 21c-4-4-8-7.5-8-12A8 8 0 0 1 20 9c0 4.5-4 8-8 12z"/>
-              <circle cx="12" cy="9" r="2.5"/>
-            </svg>
-            서울, 대한민국 · 프론트엔드 &amp; 풀스택 개발자
-          </p>
-
-          {/* Bio */}
-          <div className="tds-bio">
-            <p className="tds-bio-quote">
-              &quot;문제를 정의하고 코드로 가치를 만들어가는 개발자예요.&quot;
-            </p>
-            <p className="tds-bio-body">
-              사용자 중심의 직관적인 경험과 지속 가능한 클린 코드를 지향하며,
-              기술의 한계를 넘어 창의적인 웹 서비스를 만들어요.
-            </p>
-          </div>
-
-          <div className="tds-divider" />
-
-          {/* Core Values */}
-          <p className="tds-section-label">핵심 가치</p>
-          <div className="tds-values-grid">
-            {values.map((v) => (
-              <div key={v.num} className="tds-value-card">
-                <p className="tds-value-num">{v.num}</p>
-                <p className="tds-value-title">{v.title}</p>
-                <p className="tds-value-ko">{v.en}</p>
-                <p className="tds-value-desc">{v.desc}</p>
-              </div>
-            ))}
-          </div>
-
-          <div className="tds-divider" />
-
-          {/* Tech stack */}
-          <p className="tds-section-label">기술 스택</p>
-          <div className="tds-chips-row">
-            {techStack.map((tech) => (
-              <span key={tech} className="tds-chip">{tech}</span>
-            ))}
-          </div>
-
-          <div className="tds-divider" />
-
-          {/* Projects */}
-          <p className="tds-section-label">프로젝트 &amp; 링크</p>
-          <div>
-            <a
-              href="https://github.com/junseok1028/mylink"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="tds-list-row"
-            >
-              <div className="tds-list-avatar">🔗</div>
-              <div className="tds-list-text">
-                <p className="tds-list-title">mylink</p>
-                <p className="tds-list-sub">
-                  Next.js &amp; Tailwind CSS 기반 반응형 프로필 &amp; 링크 큐레이션
-                </p>
-              </div>
-              <span className="tds-list-arrow">›</span>
-            </a>
-            <a
-              href="https://github.com/junseok1028"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="tds-list-row"
-            >
-              <div className="tds-list-avatar">💻</div>
-              <div className="tds-list-text">
-                <p className="tds-list-title">GitHub · @junseok1028</p>
-                <p className="tds-list-sub">
-                  오픈소스 기여 및 지속적으로 커밋 중인 개발 프로젝트 아카이브
-                </p>
-              </div>
-              <span className="tds-list-arrow">›</span>
-            </a>
-          </div>
-
-          {/* Contact */}
-          <div className="tds-contact">
-            <div>
-              <p className="tds-contact-label">연락하기</p>
-              <p className="tds-contact-title">같이 만들어볼까요?</p>
-              <p className="tds-contact-sub">
-                새로운 프로젝트 제안, 커피챗, 협업 문의 언제든 환영해요.
-              </p>
-            </div>
-            <a
-              href="mailto:ahnjs4291@gmail.com"
-              className="tds-btn tds-btn-primary"
-            >
-              이메일 보내기
-            </a>
-          </div>
-
-          {/* Footer */}
-          <footer className="tds-footer">
-            <div>
-              <span className="tds-footer-dot" />
-              ahnjs4291@gmail.com
-            </div>
-            <div>© 2026 Junseok Ahn</div>
-          </footer>
-
-        </div>
+        {/* ── Footer ── */}
+        <footer className="text-center text-xs text-gray-400 pt-4">
+          Powered by <span className="text-blue-500 font-medium">MyLink</span> · 토스 스타일
+        </footer>
       </main>
 
-      {/* Toast */}
-      <div className={`tds-toast${copied ? ' show' : ''}`}>
-        <span className="tds-toast-icon">✓</span>
-        이메일 주소를 복사했어요
-      </div>
+      {/* ── Toast ── */}
+      {toastVisible && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-gray-900 text-white text-sm px-4 py-2.5 rounded-full shadow-lg">
+          {toastMessage}
+        </div>
+      )}
 
+      {/* ── Edit Modal ── */}
+      {isEditing && (
+        <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50 p-4">
+          <Card className="w-full max-w-lg max-h-[85vh] overflow-y-auto p-5 space-y-5 rounded-2xl">
+            <div className="flex justify-between items-center">
+              <h2 className="text-lg font-bold">프로필 편집</h2>
+              <button onClick={() => setIsEditing(false)}>
+                <X className="h-5 w-5 text-gray-500" />
+              </button>
+            </div>
+
+            {/* Profile fields */}
+            <div className="space-y-3">
+              <div>
+                <label className="text-xs font-medium text-gray-500 mb-1 block">이름</label>
+                <Input value={editProfile.display_name} onChange={e => setEditProfile({ ...editProfile, display_name: e.target.value })} />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-gray-500 mb-1 block">핸들 (Handle)</label>
+                <Input value={editProfile.handle || ''} onChange={e => setEditProfile({ ...editProfile, handle: e.target.value })} placeholder="Gildong" />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-gray-500 mb-1 block">한 줄 소개</label>
+                <Input value={editProfile.bio} onChange={e => setEditProfile({ ...editProfile, bio: e.target.value })} />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-gray-500 mb-1 block">아바타 URL</label>
+                <Input value={editProfile.avatar_url} onChange={e => setEditProfile({ ...editProfile, avatar_url: e.target.value })} />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-gray-500 mb-1 block">GitHub URL</label>
+                <Input value={editProfile.socials.github || ''} onChange={e => setEditProfile({ ...editProfile, socials: { ...editProfile.socials, github: e.target.value } })} />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-gray-500 mb-1 block">Instagram URL</label>
+                <Input value={editProfile.socials.instagram || ''} onChange={e => setEditProfile({ ...editProfile, socials: { ...editProfile.socials, instagram: e.target.value } })} />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-gray-500 mb-1 block">Email</label>
+                <Input value={editProfile.socials.email || ''} onChange={e => setEditProfile({ ...editProfile, socials: { ...editProfile.socials, email: e.target.value } })} />
+              </div>
+            </div>
+
+            <hr />
+
+            {/* Existing links */}
+            <div className="space-y-3">
+              <h3 className="text-sm font-bold">링크 목록</h3>
+              {editLinks.map(link => (
+                <div key={link.id} className="border rounded-xl p-3 space-y-2">
+                  <div className="flex gap-2 items-center">
+                    <Input
+                      value={link.title}
+                      onChange={e => updateLink(link.id, 'title', e.target.value)}
+                      placeholder="제목"
+                      className="flex-1"
+                    />
+                    <Button size="sm" variant="outline" onClick={() => toggleLinkActive(link.id)}>
+                      {link.is_active ? 'ON' : 'OFF'}
+                    </Button>
+                    <Button size="sm" variant="destructive" onClick={() => deleteLink(link.id)}>삭제</Button>
+                  </div>
+                  <Input
+                    value={link.description || ''}
+                    onChange={e => updateLink(link.id, 'description', e.target.value)}
+                    placeholder="설명 (선택)"
+                  />
+                  <Input
+                    value={link.url}
+                    onChange={e => updateLink(link.id, 'url', e.target.value)}
+                    placeholder="https://..."
+                  />
+                  <Input
+                    value={link.section || ''}
+                    onChange={e => updateLink(link.id, 'section', e.target.value)}
+                    placeholder="섹션 (예: 🚀 주요 프로젝트)"
+                  />
+                </div>
+              ))}
+
+              {/* Add new link */}
+              <div className="border border-dashed rounded-xl p-3 space-y-2">
+                <p className="text-xs font-semibold text-gray-600">➕ 새 링크 추가</p>
+                <Input placeholder="제목" value={newTitle} onChange={e => setNewTitle(e.target.value)} />
+                <Input placeholder="설명 (선택)" value={newDescription} onChange={e => setNewDescription(e.target.value)} />
+                <Input placeholder="URL" value={newUrl} onChange={e => setNewUrl(e.target.value)} />
+                <Input placeholder="섹션 이름 (예: 📣 소셜 채널)" value={newSection} onChange={e => setNewSection(e.target.value)} />
+                <Button size="sm" onClick={handleAddLink}>추가</Button>
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2">
+              <Button variant="outline" onClick={() => setIsEditing(false)}>취소</Button>
+              <Button onClick={handleSaveAll}>저장</Button>
+            </div>
+          </Card>
+        </div>
+      )}
     </div>
   );
 }
