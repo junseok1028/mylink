@@ -14,7 +14,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card } from '@/components/ui/card';
 import { LinkCard } from '@/components/link-card';
-import { Share2, Settings, X, Plus, Trash2 } from 'lucide-react';
+import { AddLinkDialog } from '@/components/add-link-dialog';
+import { Share2, Settings, X, Plus, Trash2, PlusCircle } from 'lucide-react';
 
 function GithubIcon({ className = "h-3.5 w-3.5" }: { className?: string }) {
   return (
@@ -45,6 +46,8 @@ export default function Page() {
   const [profile, setProfile] = useState<Profile>(INITIAL_PROFILE);
   const [links, setLinks] = useState<LinkItem[]>(INITIAL_LINKS);
   const [isEditing, setIsEditing] = useState(false);
+  const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
+  const [dialogDefaultSection, setDialogDefaultSection] = useState<string>('🚀 주요 프로젝트 & 포트폴리오');
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   // Edit form state
@@ -92,6 +95,23 @@ export default function Page() {
     showToast('저장 완료! 프로필이 업데이트되었어요.');
   };
 
+  const handleAddNewLink = (
+    newLinkData: Omit<LinkItem, 'id' | 'is_active' | 'display_order'>
+  ) => {
+    const newItem: LinkItem = {
+      id: `link_${Date.now()}`,
+      ...newLinkData,
+      is_active: true,
+      display_order: links.length + 1,
+    };
+    const updated = [...links, newItem];
+    setLinks(updated);
+    saveStoredLinks(updated);
+    // Also sync with editLinks if editor was open
+    setEditLinks(updated);
+    showToast(`'${newItem.title}' 링크가 추가되었어요! ✨`);
+  };
+
   const handleAddLink = () => {
     if (!newTitle.trim() || !newUrl.trim()) return;
     const newItem: LinkItem = {
@@ -135,6 +155,18 @@ export default function Page() {
             토스 프로필
           </span>
           <div className="flex items-center gap-1.5">
+            <Button
+              size="sm"
+              onClick={() => {
+                setDialogDefaultSection('🚀 주요 프로젝트 & 포트폴리오');
+                setIsAddDialogOpen(true);
+              }}
+              className="h-8 px-2.5 text-xs bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl shadow-xs active:scale-95 transition-all"
+              title="새 링크 추가 다이얼로그 열기"
+            >
+              <Plus className="w-3.5 h-3.5 mr-1" />
+              링크 추가
+            </Button>
             <button
               onClick={handleShare}
               className="p-2 rounded-full text-[#4E5968] hover:text-[#191F28] hover:bg-gray-100 active:scale-95 transition-all"
@@ -241,9 +273,33 @@ export default function Page() {
 
           {activeLinks.length === 0 && (
             <div className="p-8 text-center text-sm text-[#8B95A1] bg-gray-50 rounded-2xl">
-              표시할 링크가 없습니다. 상단 편집 버튼을 눌러 추가해보세요.
+              표시할 링크가 없습니다. 아래 버튼을 눌러 추가해보세요.
             </div>
           )}
+
+          {/* ── 링크 추가 CTA 버튼 ── */}
+          <div className="flex gap-2 pt-1">
+            <button
+              onClick={() => {
+                setDialogDefaultSection('🚀 주요 프로젝트 & 포트폴리오');
+                setIsAddDialogOpen(true);
+              }}
+              className="flex-1 flex items-center justify-center gap-1.5 py-3 px-3 bg-blue-50 hover:bg-blue-100/80 border border-blue-200/60 rounded-2xl text-xs font-semibold text-blue-600 active:scale-[0.98] transition-all shadow-xs"
+            >
+              <PlusCircle className="w-4 h-4" />
+              프로젝트 링크 추가
+            </button>
+            <button
+              onClick={() => {
+                setDialogDefaultSection('📢 소셜 채널');
+                setIsAddDialogOpen(true);
+              }}
+              className="flex-1 flex items-center justify-center gap-1.5 py-3 px-3 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl text-xs font-semibold active:scale-[0.98] transition-all shadow-xs"
+            >
+              <PlusCircle className="w-4 h-4" />
+              소셜 채널 추가
+            </button>
+          </div>
         </main>
 
         {/* ── Footer: Powered by MyLink · 토스 스타일 ── */}
@@ -404,6 +460,15 @@ export default function Page() {
           </Card>
         </div>
       )}
+
+      {/* ── Add Link Dialog ── */}
+      <AddLinkDialog
+        open={isAddDialogOpen}
+        onOpenChange={setIsAddDialogOpen}
+        existingSections={sections.length > 0 ? sections : ['🚀 주요 프로젝트 & 포트폴리오', '📢 소셜 채널']}
+        defaultSection={dialogDefaultSection}
+        onAddLink={handleAddNewLink}
+      />
     </div>
   );
 }
