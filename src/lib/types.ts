@@ -22,4 +22,7 @@ export interface LinkItem {
   section?: string;
   is_active: boolean;
   display_order: number;
+  createAt?: any;
+  createdAt?: any;
+  created_at?: any;
 }

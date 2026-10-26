@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Profile, LinkItem } from '@/lib/types';
 import {
   getStoredProfile,
@@ -10,12 +10,19 @@ import {
   INITIAL_PROFILE,
   INITIAL_LINKS,
 } from '@/lib/storage';
+import {
+  addLinkToFirestore,
+  getLinksFromFirestore,
+  deleteLinkFromFirestore,
+  updateLinkInFirestore,
+  seedInitialLinksIfEmpty,
+} from '@/lib/firestore-links';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card } from '@/components/ui/card';
 import { LinkCard } from '@/components/link-card';
 import { AddLinkDialog } from '@/components/add-link-dialog';
-import { Share2, Settings, X, Plus, Trash2, PlusCircle } from 'lucide-react';
+import { Share2, Settings, X, Plus, Trash2, PlusCircle, Loader2, RefreshCw } from 'lucide-react';
 
 function GithubIcon({ className = "h-3.5 w-3.5" }: { className?: string }) {
   return (
@@ -45,6 +52,8 @@ function EmailIcon({ className = "h-3.5 w-3.5" }: { className?: string }) {
 export default function Page() {
   const [profile, setProfile] = useState<Profile>(INITIAL_PROFILE);
   const [links, setLinks] = useState<LinkItem[]>(INITIAL_LINKS);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [dialogDefaultSection, setDialogDefaultSection] = useState<string>('🚀 주요 프로젝트 & 포트폴리오');
@@ -58,15 +67,60 @@ export default function Page() {
   const [newUrl, setNewUrl] = useState('');
   const [newSection, setNewSection] = useState('🚀 주요 프로젝트 & 포트폴리오');
 
-  useEffect(() => {
-    setProfile(getStoredProfile());
-    setLinks(getStoredLinks());
-  }, []);
-
   const showToast = (msg: string) => {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(null), 2500);
   };
+
+  /**
+   * Firestore에서 링크 목록을 1회 불러옵니다 (createAt 최신순 정렬)
+   */
+  const loadLinksFromFirestore = useCallback(async (isInitial = false) => {
+    if (isInitial) {
+      setIsLoading(true);
+    } else {
+      setIsRefreshing(true);
+    }
+
+    try {
+      // 1. Firestore에서 링크 목록 가져오기 (createAt desc 정렬)
+      let firestoreLinks = await getLinksFromFirestore();
+
+      // 만약 첫 방문이라 Firestore가 비어있다면 초기 데이터 시딩 후 재조회
+      if (firestoreLinks.length === 0) {
+        await seedInitialLinksIfEmpty();
+        firestoreLinks = await getLinksFromFirestore();
+      }
+
+      if (firestoreLinks.length > 0) {
+        setLinks(firestoreLinks);
+        saveStoredLinks(firestoreLinks);
+        setEditLinks(firestoreLinks);
+      }
+    } catch (err) {
+      console.error('Firestore getLinks error:', err);
+      showToast('네트워크 문제로 로컬 캐시 링크를 불러왔어요.');
+    } finally {
+      if (isInitial) {
+        setIsLoading(false);
+      } else {
+        setIsRefreshing(false);
+      }
+    }
+  }, []);
+
+  // 페이지 마운트 시 1회 Firestore에서 링크 불러오기
+  useEffect(() => {
+    // 1. 프로필 및 로컬 캐시 링크 즉시 표시
+    setProfile(getStoredProfile());
+    const cachedLinks = getStoredLinks();
+    if (cachedLinks && cachedLinks.length > 0) {
+      setLinks(cachedLinks);
+    }
+
+    // 2. Firestore에서 최신순 링크 불러오기
+    loadLinksFromFirestore(true);
+  }, [loadLinksFromFirestore]);
 
   const handleShare = () => {
     if (navigator.share) {
@@ -86,55 +140,128 @@ export default function Page() {
     setIsEditing(true);
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     setProfile(editProfile);
     saveStoredProfile(editProfile);
     setLinks(editLinks);
     saveStoredLinks(editLinks);
     setIsEditing(false);
-    showToast('저장 완료! 프로필이 업데이트되었어요.');
+
+    // Firestore에도 개별 링크 업데이트 반영 시도 후 갱신
+    setIsRefreshing(true);
+    try {
+      for (const link of editLinks) {
+        await updateLinkInFirestore(link.id, {
+          title: link.title,
+          description: link.description,
+          url: link.url,
+          section: link.section,
+          is_active: link.is_active,
+          display_order: link.display_order,
+        });
+      }
+      await loadLinksFromFirestore(false);
+      showToast('저장 완료! 프로필과 링크가 업데이트되었어요.');
+    } catch (err) {
+      console.warn('Firestore update sync error:', err);
+      showToast('프로필이 업데이트되었어요.');
+    } finally {
+      setIsRefreshing(false);
+    }
   };
 
-  const handleAddNewLink = (
+  // ── Firestore로 링크 추가 후 목록 갱신 (users/anonymous/links) ──
+  const handleAddNewLink = async (
     newLinkData: Omit<LinkItem, 'id' | 'is_active' | 'display_order'>
   ) => {
-    const newItem: LinkItem = {
-      id: `link_${Date.now()}`,
-      ...newLinkData,
-      is_active: true,
-      display_order: links.length + 1,
-    };
-    const updated = [...links, newItem];
-    setLinks(updated);
-    saveStoredLinks(updated);
-    // Also sync with editLinks if editor was open
-    setEditLinks(updated);
-    showToast(`'${newItem.title}' 링크가 추가되었어요! ✨`);
+    setIsRefreshing(true);
+    try {
+      const newItem = await addLinkToFirestore({
+        ...newLinkData,
+        is_active: true,
+        display_order: links.length + 1,
+      });
+
+      // Firestore에서 최신순 목록 다시 불러와 목록 갱신!
+      await loadLinksFromFirestore(false);
+
+      showToast(`'${newItem.title}' 링크가 추가되었어요! ✨`);
+    } catch (error) {
+      console.error('Firestore link addition error:', error);
+      // 로컬 스토리지 Fallback 처리
+      const fallbackItem: LinkItem = {
+        id: `link_${Date.now()}`,
+        ...newLinkData,
+        is_active: true,
+        display_order: links.length + 1,
+        createAt: Date.now(),
+      };
+      const updated = [fallbackItem, ...links];
+      setLinks(updated);
+      saveStoredLinks(updated);
+      setEditLinks(updated);
+      showToast(`'${fallbackItem.title}' 링크가 로컬에 추가되었어요.`);
+    } finally {
+      setIsRefreshing(false);
+    }
   };
 
-  const handleAddLink = () => {
+  const handleAddLink = async () => {
     if (!newTitle.trim() || !newUrl.trim()) return;
-    const newItem: LinkItem = {
-      id: `link_${Date.now()}`,
-      title: newTitle.trim(),
-      description: newDescription.trim() || undefined,
-      url: newUrl.trim(),
-      section: newSection.trim() || '기타',
-      is_active: true,
-      display_order: editLinks.length + 1,
-    };
-    setEditLinks([...editLinks, newItem]);
-    setNewTitle('');
-    setNewDescription('');
-    setNewUrl('');
+    setIsRefreshing(true);
+    try {
+      const newItem = await addLinkToFirestore({
+        title: newTitle.trim(),
+        description: newDescription.trim() || undefined,
+        url: newUrl.trim(),
+        section: newSection.trim() || '기타',
+        is_active: true,
+        display_order: editLinks.length + 1,
+      });
+
+      setNewTitle('');
+      setNewDescription('');
+      setNewUrl('');
+
+      // 목록 갱신
+      await loadLinksFromFirestore(false);
+      showToast(`'${newItem.title}' 링크가 추가되었어요! ✨`);
+    } catch (error) {
+      console.error('Firestore link addition error:', error);
+      const fallbackItem: LinkItem = {
+        id: `link_${Date.now()}`,
+        title: newTitle.trim(),
+        description: newDescription.trim() || undefined,
+        url: newUrl.trim(),
+        section: newSection.trim() || '기타',
+        is_active: true,
+        display_order: editLinks.length + 1,
+        createAt: Date.now(),
+      };
+      setEditLinks([fallbackItem, ...editLinks]);
+      setNewTitle('');
+      setNewDescription('');
+      setNewUrl('');
+    } finally {
+      setIsRefreshing(false);
+    }
   };
 
   const toggleLinkActive = (id: string) => {
     setEditLinks(editLinks.map(l => l.id === id ? { ...l, is_active: !l.is_active } : l));
   };
 
-  const deleteLink = (id: string) => {
+  const deleteLink = async (id: string) => {
     setEditLinks(editLinks.filter(l => l.id !== id));
+    setIsRefreshing(true);
+    try {
+      await deleteLinkFromFirestore(id);
+      await loadLinksFromFirestore(false);
+    } catch (err) {
+      console.warn('Firestore delete failed:', err);
+    } finally {
+      setIsRefreshing(false);
+    }
   };
 
   const updateLink = (id: string, field: keyof LinkItem, value: string) => {
@@ -151,10 +278,27 @@ export default function Page() {
         
         {/* ── Top Bar: [토스 프로필]  [ ↗ ] (공유 버튼) ── */}
         <header className="sticky top-0 z-20 bg-white/90 backdrop-blur-md border-b border-gray-100 px-5 py-3.5 flex justify-between items-center">
-          <span className="text-[14px] font-bold text-[#191F28] tracking-tight">
-            토스 프로필
-          </span>
+          <div className="flex items-center gap-2">
+            <span className="text-[14px] font-bold text-[#191F28] tracking-tight">
+              토스 프로필
+            </span>
+            {isRefreshing && (
+              <span className="flex items-center gap-1 text-[11px] font-medium text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full animate-pulse">
+                <Loader2 className="w-2.5 h-2.5 animate-spin" />
+                갱신 중
+              </span>
+            )}
+          </div>
           <div className="flex items-center gap-1.5">
+            <button
+              onClick={() => loadLinksFromFirestore(false)}
+              disabled={isRefreshing || isLoading}
+              className="p-2 rounded-full text-[#4E5968] hover:text-blue-600 hover:bg-gray-100 active:scale-95 transition-all disabled:opacity-50"
+              aria-label="새로고침"
+              title="Firestore 링크 새로고침"
+            >
+              <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin text-blue-600' : ''}`} />
+            </button>
             <Button
               size="sm"
               onClick={() => {
@@ -186,6 +330,13 @@ export default function Page() {
             </Button>
           </div>
         </header>
+
+        {/* ── Refreshing Progress Bar ── */}
+        {isRefreshing && (
+          <div className="h-0.5 w-full bg-blue-100 overflow-hidden">
+            <div className="h-full bg-blue-600 animate-pulse w-full" />
+          </div>
+        )}
 
         {/* ── Profile Section: Avatar, Name & Handle, Bio, Social Badges ── */}
         <section className="flex flex-col items-center text-center px-5 pt-7 pb-4 space-y-3">
@@ -253,28 +404,52 @@ export default function Page() {
 
         {/* ── Link Sections: Section Header + Link Button Cards ── */}
         <main className="flex-1 px-5 py-3 space-y-6">
-          {sections.map(section => (
-            <div key={section} className="space-y-2.5">
-              {/* Section Header */}
-              <h2 className="text-[14px] font-bold text-[#191F28] px-1 tracking-tight">
-                {section}
-              </h2>
-
-              {/* Link Cards */}
-              <div className="space-y-2.5">
-                {activeLinks
-                  .filter(l => (l.section || '기타') === section)
-                  .map(link => (
-                    <LinkCard key={link.id} link={link} />
-                  ))}
+          {/* 초기 로딩 시 스켈레톤 UI */}
+          {isLoading ? (
+            <div className="space-y-4 py-1">
+              <div className="space-y-3">
+                <div className="h-4 w-32 bg-gray-200/80 rounded-md animate-pulse ml-1" />
+                {[1, 2, 3].map((i) => (
+                  <div
+                    key={i}
+                    className="flex items-center gap-3.5 p-3.5 sm:p-4 rounded-2xl bg-white border border-gray-100 shadow-xs animate-pulse"
+                  >
+                    <div className="w-11 h-11 rounded-xl bg-gray-200/70 shrink-0" />
+                    <div className="flex-1 space-y-2">
+                      <div className="h-4 w-2/5 bg-gray-200/80 rounded" />
+                      <div className="h-3 w-4/5 bg-gray-100 rounded" />
+                    </div>
+                    <div className="w-4 h-4 bg-gray-200/50 rounded-full shrink-0" />
+                  </div>
+                ))}
               </div>
             </div>
-          ))}
+          ) : (
+            <>
+              {sections.map(section => (
+                <div key={section} className="space-y-2.5">
+                  {/* Section Header */}
+                  <h2 className="text-[14px] font-bold text-[#191F28] px-1 tracking-tight">
+                    {section}
+                  </h2>
 
-          {activeLinks.length === 0 && (
-            <div className="p-8 text-center text-sm text-[#8B95A1] bg-gray-50 rounded-2xl">
-              표시할 링크가 없습니다. 아래 버튼을 눌러 추가해보세요.
-            </div>
+                  {/* Link Cards */}
+                  <div className="space-y-2.5">
+                    {activeLinks
+                      .filter(l => (l.section || '기타') === section)
+                      .map(link => (
+                        <LinkCard key={link.id} link={link} />
+                      ))}
+                  </div>
+                </div>
+              ))}
+
+              {activeLinks.length === 0 && (
+                <div className="p-8 text-center text-sm text-[#8B95A1] bg-gray-50 rounded-2xl">
+                  표시할 링크가 없습니다. 아래 버튼을 눌러 추가해보세요.
+                </div>
+              )}
+            </>
           )}
 
           {/* ── 링크 추가 CTA 버튼 ── */}

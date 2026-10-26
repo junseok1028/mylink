@@ -1,4 +1,5 @@
 import { initializeApp, getApps, getApp } from "firebase/app";
+import { getFirestore } from "firebase/firestore";
 import { getAnalytics, isSupported, type Analytics } from "firebase/analytics";
 
 // Your web app's Firebase configuration
@@ -14,6 +15,7 @@ const firebaseConfig = {
 
 // Initialize Firebase (safely handle SSR & fast reload)
 const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
+const db = getFirestore(app);
 
 // Initialize Analytics (client-side only)
 let analytics: Analytics | null = null;
@@ -25,5 +27,5 @@ if (typeof window !== "undefined") {
   });
 }
 
-export { app, analytics, firebaseConfig };
+export { app, db, analytics, firebaseConfig };
 export default app;

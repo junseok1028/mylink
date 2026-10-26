@@ -71,7 +71,7 @@ interface AddLinkDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   existingSections: string[];
-  onAddLink: (link: Omit<LinkItem, 'id' | 'is_active' | 'display_order'>) => void;
+  onAddLink: (link: Omit<LinkItem, 'id' | 'is_active' | 'display_order'>) => void | Promise<void>;
   defaultSection?: string;
 }
 
@@ -133,7 +133,7 @@ export function AddLinkDialog({
     }
   };
 
-  const onSubmit = (data: AddLinkFormValues) => {
+  const onSubmit = async (data: AddLinkFormValues) => {
     let finalUrl = data.url.trim();
     if (
       !finalUrl.startsWith('http://') &&
@@ -147,7 +147,7 @@ export function AddLinkDialog({
       ? (data.customSection?.trim() || '기타')
       : data.selectedSection;
 
-    onAddLink({
+    await onAddLink({
       title: data.title.trim(),
       url: finalUrl,
       description: data.description?.trim() || undefined,
@@ -318,7 +318,7 @@ export function AddLinkDialog({
               disabled={isSubmitting}
               className="bg-blue-600 hover:bg-blue-700 text-white cursor-pointer"
             >
-              추가하기
+              {isSubmitting ? '추가 중...' : '추가하기'}
             </Button>
           </DialogFooter>
         </form>
