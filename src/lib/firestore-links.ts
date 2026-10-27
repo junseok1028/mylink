@@ -3,6 +3,7 @@ import {
   doc,
   addDoc,
   setDoc,
+  getDoc,
   getDocs,
   deleteDoc,
   updateDoc,
@@ -13,7 +14,7 @@ import {
   Timestamp,
 } from 'firebase/firestore';
 import { db } from './firebase';
-import { LinkItem } from './types';
+import { LinkItem, Profile } from './types';
 import { INITIAL_LINKS } from './storage';
 
 // Firestore collection path specified: users/anonymous/links
@@ -53,6 +54,8 @@ export async function addLinkToFirestore(
     createAt: now,
     createdAt: now,
     created_at: now,
+    updatedAt: now,
+    updated_at: now,
   };
 
   let docId = link.id;
@@ -102,6 +105,8 @@ export function subscribeToLinks(
           display_order: typeof data.display_order === 'number' ? data.display_order : 0,
           createAt: data.createAt || data.createdAt || data.created_at,
           createdAt: data.createdAt || data.createAt || data.created_at,
+          updatedAt: data.updatedAt || data.updated_at || undefined,
+          updated_at: data.updated_at || data.updatedAt || undefined,
         };
       });
 
@@ -151,6 +156,8 @@ export async function getLinksFromFirestore(): Promise<LinkItem[]> {
       display_order: typeof data.display_order === 'number' ? data.display_order : 0,
       createAt: data.createAt || data.createdAt || data.created_at,
       createdAt: data.createdAt || data.createAt || data.created_at,
+      updatedAt: data.updatedAt || data.updated_at || undefined,
+      updated_at: data.updated_at || data.updatedAt || undefined,
     };
   });
 
@@ -180,7 +187,11 @@ export async function updateLinkInFirestore(
   updates: Partial<Omit<LinkItem, 'id'>>
 ): Promise<void> {
   const docRef = doc(db, 'users', 'anonymous', 'links', id);
-  const cleanUpdates: Record<string, unknown> = {};
+  const now = serverTimestamp();
+  const cleanUpdates: Record<string, unknown> = {
+    updatedAt: now,
+    updated_at: now,
+  };
   if (updates.title !== undefined) cleanUpdates.title = updates.title;
   if (updates.url !== undefined) cleanUpdates.url = updates.url;
   if (updates.description !== undefined) cleanUpdates.description = updates.description ?? null;
@@ -188,7 +199,35 @@ export async function updateLinkInFirestore(
   if (updates.is_active !== undefined) cleanUpdates.is_active = updates.is_active;
   if (updates.display_order !== undefined) cleanUpdates.display_order = updates.display_order;
 
-  await updateDoc(docRef, cleanUpdates);
+  await setDoc(docRef, cleanUpdates, { merge: true });
+}
+
+/**
+ * 프로필 정보 조회 (users/anonymous/metadata/profile)
+ */
+export async function getProfileFromFirestore(): Promise<Profile | null> {
+  try {
+    const docRef = doc(db, 'users', 'anonymous', 'metadata', 'profile');
+    const snap = await getDoc(docRef);
+    if (snap.exists()) {
+      return snap.data() as Profile;
+    }
+  } catch (err) {
+    console.warn('getProfileFromFirestore error:', err);
+  }
+  return null;
+}
+
+/**
+ * 프로필 정보 저장 (users/anonymous/metadata/profile)
+ */
+export async function saveProfileToFirestore(profile: Profile): Promise<void> {
+  try {
+    const docRef = doc(db, 'users', 'anonymous', 'metadata', 'profile');
+    await setDoc(docRef, profile, { merge: true });
+  } catch (err) {
+    console.warn('saveProfileToFirestore error:', err);
+  }
 }
 
 /**

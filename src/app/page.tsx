@@ -16,13 +16,17 @@ import {
   deleteLinkFromFirestore,
   updateLinkInFirestore,
   seedInitialLinksIfEmpty,
+  getProfileFromFirestore,
+  saveProfileToFirestore,
 } from '@/lib/firestore-links';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card } from '@/components/ui/card';
 import { LinkCard } from '@/components/link-card';
+import { LinkIcon } from '@/components/link-icon';
 import { AddLinkDialog } from '@/components/add-link-dialog';
-import { Share2, Settings, X, Plus, Trash2, PlusCircle, Loader2, RefreshCw } from 'lucide-react';
+import { DeleteLinkDialog } from '@/components/delete-link-dialog';
+import { Share2, Settings, X, Plus, Trash2, PlusCircle, Loader2, RefreshCw, Globe } from 'lucide-react';
 
 function GithubIcon({ className = "h-3.5 w-3.5" }: { className?: string }) {
   return (
@@ -49,6 +53,24 @@ function EmailIcon({ className = "h-3.5 w-3.5" }: { className?: string }) {
   );
 }
 
+function YoutubeIcon({ className = "h-3.5 w-3.5" }: { className?: string }) {
+  return (
+    <svg className={className} fill="currentColor" viewBox="0 0 24 24">
+      <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/>
+    </svg>
+  );
+}
+
+function WebGlobeIcon({ className = "h-3.5 w-3.5" }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+      <circle cx="12" cy="12" r="10" />
+      <path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20" />
+      <path d="M2 12h20" />
+    </svg>
+  );
+}
+
 export default function Page() {
   const [profile, setProfile] = useState<Profile>(INITIAL_PROFILE);
   const [links, setLinks] = useState<LinkItem[]>(INITIAL_LINKS);
@@ -59,6 +81,11 @@ export default function Page() {
   const [dialogDefaultSection, setDialogDefaultSection] = useState<string>('🚀 주요 프로젝트 & 포트폴리오');
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
+  // 삭제 모달 상태
+  const [deletingLink, setDeletingLink] = useState<LinkItem | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [isSavingProfile, setIsSavingProfile] = useState(false);
+
   // Edit form state
   const [editProfile, setEditProfile] = useState<Profile>(INITIAL_PROFILE);
   const [editLinks, setEditLinks] = useState<LinkItem[]>(INITIAL_LINKS);
@@ -66,6 +93,9 @@ export default function Page() {
   const [newDescription, setNewDescription] = useState('');
   const [newUrl, setNewUrl] = useState('');
   const [newSection, setNewSection] = useState('🚀 주요 프로젝트 & 포트폴리오');
+  // ---- New state for dynamic social addition ----
+  const [newSocialType, setNewSocialType] = useState<'' | 'github' | 'instagram' | 'youtube' | 'email'>('');
+  const [newSocialUrl, setNewSocialUrl] = useState('');
 
   const showToast = (msg: string) => {
     setToastMessage(msg);
@@ -109,7 +139,7 @@ export default function Page() {
     }
   }, []);
 
-  // 페이지 마운트 시 1회 Firestore에서 링크 불러오기
+  // 페이지 마운트 시 1회 Firestore에서 링크 및 프로필 불러오기
   useEffect(() => {
     // 1. 프로필 및 로컬 캐시 링크 즉시 표시
     setProfile(getStoredProfile());
@@ -117,6 +147,14 @@ export default function Page() {
     if (cachedLinks && cachedLinks.length > 0) {
       setLinks(cachedLinks);
     }
+
+    // Firestore 원격 프로필 조회 및 동기화
+    getProfileFromFirestore().then((remoteProfile) => {
+      if (remoteProfile) {
+        setProfile(remoteProfile);
+        saveStoredProfile(remoteProfile);
+      }
+    });
 
     // 2. Firestore에서 최신순 링크 불러오기
     loadLinksFromFirestore(true);
@@ -135,37 +173,40 @@ export default function Page() {
   };
 
   const handleOpenEdit = () => {
-    setEditProfile({ ...profile });
+    setEditProfile({
+      ...profile,
+      socials: { ...profile.socials },
+    });
     setEditLinks([...links]);
     setIsEditing(true);
   };
 
   const handleSave = async () => {
-    setProfile(editProfile);
-    saveStoredProfile(editProfile);
-    setLinks(editLinks);
-    saveStoredLinks(editLinks);
-    setIsEditing(false);
-
-    // Firestore에도 개별 링크 업데이트 반영 시도 후 갱신
+    setIsSavingProfile(true);
     setIsRefreshing(true);
     try {
+      setProfile(editProfile);
+      saveStoredProfile(editProfile);
+      await saveProfileToFirestore(editProfile);
+
+      setLinks(editLinks);
+      saveStoredLinks(editLinks);
+
+      // Firestore 링크 노출/숨김 상태 갱신
       for (const link of editLinks) {
         await updateLinkInFirestore(link.id, {
-          title: link.title,
-          description: link.description,
-          url: link.url,
-          section: link.section,
           is_active: link.is_active,
-          display_order: link.display_order,
         });
       }
       await loadLinksFromFirestore(false);
-      showToast('저장 완료! 프로필과 링크가 업데이트되었어요.');
+      showToast('저장 완료! 프로필과 노출 설정이 저장되었어요.');
+      setIsEditing(false);
     } catch (err) {
       console.warn('Firestore update sync error:', err);
       showToast('프로필이 업데이트되었어요.');
+      setIsEditing(false);
     } finally {
+      setIsSavingProfile(false);
       setIsRefreshing(false);
     }
   };
@@ -247,6 +288,53 @@ export default function Page() {
     }
   };
 
+  // ── 개별 링크 인라인 수정 후 Firestore 갱신형 업데이트 ──
+  const handleUpdateLink = async (id: string, updates: Partial<LinkItem>) => {
+    setIsRefreshing(true);
+    try {
+      await updateLinkInFirestore(id, updates);
+      // 갱신형: Firestore에서 최신 목록 다시 불러오기
+      await loadLinksFromFirestore(false);
+      showToast(`'${updates.title || '링크'}' 수정이 반영되었어요! ✨`);
+    } catch (error) {
+      console.error('Firestore link update error:', error);
+      // 로컬 스토리지 Fallback
+      const updated = links.map((l) => (l.id === id ? { ...l, ...updates } : l));
+      setLinks(updated);
+      saveStoredLinks(updated);
+      setEditLinks(updated);
+      showToast('로컬에 수정 사항이 반영되었어요.');
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
+
+  // ── 개별 링크 삭제 확인 후 Firestore 갱신형 삭제 ──
+  const handleConfirmDelete = async (id: string) => {
+    const targetTitle = deletingLink?.title || '링크';
+    setIsDeleting(true);
+    setIsRefreshing(true);
+    try {
+      await deleteLinkFromFirestore(id);
+      // 갱신형: Firestore에서 최신 목록 다시 불러오기
+      await loadLinksFromFirestore(false);
+      showToast(`'${targetTitle}' 링크가 삭제되었어요.`);
+      setDeletingLink(null);
+    } catch (error) {
+      console.error('Firestore link delete error:', error);
+      // 로컬 스토리지 Fallback
+      const updated = links.filter((l) => l.id !== id);
+      setLinks(updated);
+      saveStoredLinks(updated);
+      setEditLinks(updated);
+      showToast('링크가 삭제되었어요.');
+      setDeletingLink(null);
+    } finally {
+      setIsDeleting(false);
+      setIsRefreshing(false);
+    }
+  };
+
   const toggleLinkActive = (id: string) => {
     setEditLinks(editLinks.map(l => l.id === id ? { ...l, is_active: !l.is_active } : l));
   };
@@ -276,12 +364,9 @@ export default function Page() {
     <div className="min-h-screen bg-[#F9FAFB] text-[#191F28] flex flex-col items-center">
       <div className="w-full max-w-md bg-white min-h-screen sm:min-h-0 sm:my-8 sm:rounded-3xl sm:shadow-lg sm:border sm:border-gray-100 flex flex-col overflow-hidden">
         
-        {/* ── Top Bar: [토스 프로필]  [ ↗ ] (공유 버튼) ── */}
+        {/* ── Top Bar ── */}
         <header className="sticky top-0 z-20 bg-white/90 backdrop-blur-md border-b border-gray-100 px-5 py-3.5 flex justify-between items-center">
-          <div className="flex items-center gap-2">
-            <span className="text-[14px] font-bold text-[#191F28] tracking-tight">
-              토스 프로필
-            </span>
+          <div className="flex items-center gap-2 min-h-[28px]">
             {isRefreshing && (
               <span className="flex items-center gap-1 text-[11px] font-medium text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full animate-pulse">
                 <Loader2 className="w-2.5 h-2.5 animate-spin" />
@@ -391,12 +476,39 @@ export default function Page() {
             )}
 
             {profile.socials.email && (
-              <a
-                href={profile.socials.email.startsWith('mailto:') ? profile.socials.email : `mailto:${profile.socials.email}`}
+              <button
+                onClick={() => {
+                  navigator.clipboard.writeText(profile.socials.email ?? '');
+                  showToast('이메일 주소가 복사되었습니다');
+                }}
                 className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-gray-100 hover:bg-gray-200/80 active:scale-95 text-xs font-semibold text-[#333D4B] transition-all"
               >
                 <EmailIcon className="w-3.5 h-3.5" />
                 <span>Email</span>
+              </button>
+            )}
+
+            {profile.socials.youtube && (
+              <a
+                href={profile.socials.youtube.startsWith('http') ? profile.socials.youtube : `https://${profile.socials.youtube}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-gray-100 hover:bg-gray-200/80 active:scale-95 text-xs font-semibold text-[#333D4B] transition-all"
+              >
+                <YoutubeIcon className="w-3.5 h-3.5 text-red-500" />
+                <span>YouTube</span>
+              </a>
+            )}
+
+            {profile.socials.blog && (
+              <a
+                href={profile.socials.blog.startsWith('http') ? profile.socials.blog : `https://${profile.socials.blog}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-gray-100 hover:bg-gray-200/80 active:scale-95 text-xs font-semibold text-[#333D4B] transition-all"
+              >
+                <WebGlobeIcon className="w-3.5 h-3.5 text-blue-500" />
+                <span>Blog</span>
               </a>
             )}
           </div>
@@ -438,7 +550,13 @@ export default function Page() {
                     {activeLinks
                       .filter(l => (l.section || '기타') === section)
                       .map(link => (
-                        <LinkCard key={link.id} link={link} />
+                        <LinkCard
+                          key={link.id}
+                          link={link}
+                          existingSections={sections}
+                          onUpdate={handleUpdateLink}
+                          onDeleteRequest={(item) => setDeletingLink(item)}
+                        />
                       ))}
                   </div>
                 </div>
@@ -497,18 +615,21 @@ export default function Page() {
         <div className="fixed inset-0 bg-black/40 backdrop-blur-xs flex items-center justify-center z-50 p-4">
           <Card className="w-full max-w-md max-h-[85vh] overflow-y-auto p-5 space-y-5 rounded-3xl bg-white shadow-2xl">
             <div className="flex justify-between items-center pb-2 border-b border-gray-100">
-              <h2 className="text-base font-bold text-[#191F28]">프로필 및 링크 편집</h2>
+              <h2 className="text-base font-bold text-[#191F28]">프로필 및 설정</h2>
               <button
+                disabled={isSavingProfile}
                 onClick={() => setIsEditing(false)}
-                className="p-1 rounded-full text-gray-400 hover:text-gray-700 hover:bg-gray-100"
+                className="p-1 rounded-full text-gray-400 hover:text-gray-700 hover:bg-gray-100 disabled:opacity-50 cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            {/* Profile fields */}
+            {/* 1. 프로필 기본 정보 */}
             <div className="space-y-3">
-              <h3 className="text-xs font-bold text-[#8B95A1] uppercase tracking-wider">프로필</h3>
+              <h3 className="text-xs font-bold text-[#8B95A1] uppercase tracking-wider">
+                프로필 정보
+              </h3>
               <div>
                 <label className="text-xs font-semibold text-[#4E5968] mb-1 block">이름</label>
                 <Input
@@ -533,103 +654,275 @@ export default function Page() {
                   placeholder="풀스택 개발자 & 크리에이터 🚀"
                 />
               </div>
+            </div>
+
+            <hr className="border-gray-100" />
+
+            {/* 2. 소셜 아이콘 링크 설정 (GitHub, Insta, Email, YouTube, Blog) */}
+            <div className="space-y-3">
+              {/* Existing fields */}
+              <div className="flex flex-col space-y-1">
+                <label className="text-xs font-semibold text-[#4E5968]">GitHub</label>
+                <Input
+                  value={editProfile.socials.github ?? ''}
+                  onChange={(e) =>
+                    setEditProfile((p) => ({
+                      ...p,
+                      socials: { ...p.socials, github: e.target.value },
+                    }))
+                  }
+                  placeholder="https://github.com/username"
+                />
+              </div>
+              <div className="flex flex-col space-y-1">
+                <label className="text-xs font-semibold text-[#4E5968]">Instagram</label>
+                <Input
+                  value={editProfile.socials.instagram ?? ''}
+                  onChange={(e) =>
+                    setEditProfile((p) => ({
+                      ...p,
+                      socials: { ...p.socials, instagram: e.target.value },
+                    }))
+                  }
+                  placeholder="https://instagram.com/username"
+                />
+              </div>
+              <div className="flex flex-col space-y-1">
+                <label className="text-xs font-semibold text-[#4E5968]">YouTube</label>
+                <Input
+                  value={editProfile.socials.youtube ?? ''}
+                  onChange={(e) =>
+                    setEditProfile((p) => ({
+                      ...p,
+                      socials: { ...p.socials, youtube: e.target.value },
+                    }))
+                  }
+                  placeholder="https://youtube.com/channel/..."
+                />
+              </div>
+              <div className="flex flex-col space-y-1">
+                <label className="text-xs font-semibold text-[#4E5968]">Email</label>
+                <Input
+                  value={editProfile.socials.email ?? ''}
+                  onChange={(e) =>
+                    setEditProfile((p) => ({
+                      ...p,
+                      socials: { ...p.socials, email: e.target.value },
+                    }))
+                  }
+                  placeholder="example@domain.com"
+                />
+              </div>
+              {/* Add new social entry */}
+              <div className="flex items-center gap-2 pt-2">
+                <select
+                  value={newSocialType}
+                  onChange={(e) => setNewSocialType(e.target.value as any)}
+                  className="rounded border-gray-300 text-sm"
+                >
+                  <option value="">소셜 선택</option>
+                  <option value="github">GitHub</option>
+                  <option value="instagram">Instagram</option>
+                  <option value="youtube">YouTube</option>
+                  <option value="email">Email</option>
+                </select>
+                <Input
+                  placeholder="URL 혹은 Email"
+                  value={newSocialUrl}
+                  onChange={(e) => setNewSocialUrl(e.target.value)}
+                  className="flex-1"
+                />
+                <Button
+                  size="sm"
+                  onClick={() => {
+                    if (!newSocialType || !newSocialUrl.trim()) return;
+                    setEditProfile((p) => ({
+                      ...p,
+                      socials: { ...p.socials, [newSocialType]: newSocialUrl.trim() },
+                    }));
+                    setNewSocialType('');
+                    setNewSocialUrl('');
+                  }}
+                >
+                  추가
+                </Button>
+              </div>
+            </div>
+            <div className="space-y-3">
+              <div className="flex flex-col">
+                <h3 className="text-xs font-bold text-[#8B95A1] uppercase tracking-wider">
+                  소셜 아이콘 뱃지
+                </h3>
+                <p className="text-[11px] text-[#8B95A1] mt-0.5">
+                  입력된 소셜 링크만 프로필 하단에 작은 아이콘 뱃지로 표시됩니다.
+                </p>
+              </div>
+
               <div>
-                <label className="text-xs font-semibold text-[#4E5968] mb-1 block">GitHub URL</label>
+                <label className="text-xs font-semibold text-[#4E5968] mb-1 flex items-center gap-1.5">
+                  <GithubIcon className="w-3.5 h-3.5" /> GitHub URL
+                </label>
                 <Input
                   value={editProfile.socials.github || ''}
-                  onChange={e => setEditProfile({ ...editProfile, socials: { ...editProfile.socials, github: e.target.value } })}
-                  placeholder="https://github.com/junseok1028/mylink"
+                  onChange={e =>
+                    setEditProfile({
+                      ...editProfile,
+                      socials: { ...editProfile.socials, github: e.target.value },
+                    })
+                  }
+                  placeholder="https://github.com/..."
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold text-[#4E5968] mb-1 flex items-center gap-1.5">
+                  <InstagramIcon className="w-3.5 h-3.5 text-pink-500" /> Instagram URL
+                </label>
+                <Input
+                  value={editProfile.socials.instagram || ''}
+                  onChange={e =>
+                    setEditProfile({
+                      ...editProfile,
+                      socials: { ...editProfile.socials, instagram: e.target.value },
+                    })
+                  }
+                  placeholder="https://instagram.com/..."
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold text-[#4E5968] mb-1 flex items-center gap-1.5">
+                  <EmailIcon className="w-3.5 h-3.5 text-blue-500" /> 이메일 (Email)
+                </label>
+                <Input
+                  value={editProfile.socials.email || ''}
+                  onChange={e =>
+                    setEditProfile({
+                      ...editProfile,
+                      socials: { ...editProfile.socials, email: e.target.value },
+                    })
+                  }
+                  placeholder="user@example.com 또는 mailto:..."
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold text-[#4E5968] mb-1 flex items-center gap-1.5">
+                  <YoutubeIcon className="w-3.5 h-3.5 text-red-500" /> YouTube URL
+                </label>
+                <Input
+                  value={editProfile.socials.youtube || ''}
+                  onChange={e =>
+                    setEditProfile({
+                      ...editProfile,
+                      socials: { ...editProfile.socials, youtube: e.target.value },
+                    })
+                  }
+                  placeholder="https://youtube.com/@..."
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold text-[#4E5968] mb-1 flex items-center gap-1.5">
+                  <WebGlobeIcon className="w-3.5 h-3.5 text-emerald-500" /> 블로그 / 웹사이트 URL
+                </label>
+                <Input
+                  value={editProfile.socials.blog || ''}
+                  onChange={e =>
+                    setEditProfile({
+                      ...editProfile,
+                      socials: { ...editProfile.socials, blog: e.target.value },
+                    })
+                  }
+                  placeholder="https://velog.io/@..."
                 />
               </div>
             </div>
 
             <hr className="border-gray-100" />
 
-            {/* Links management */}
+            {/* 3. 링크 노출/숨김 관리 (중복 수정/추가 제거하고 토글만 심플하게 유지) */}
             <div className="space-y-3">
-              <h3 className="text-xs font-bold text-[#8B95A1] uppercase tracking-wider">링크 관리</h3>
-              {editLinks.map(link => (
-                <div key={link.id} className="p-3 bg-gray-50 border border-gray-100 rounded-2xl space-y-2">
-                  <div className="flex items-center gap-2">
-                    <Input
-                      value={link.title}
-                      onChange={e => updateLink(link.id, 'title', e.target.value)}
-                      placeholder="제목"
-                      className="flex-1 bg-white text-xs font-bold"
-                    />
+              <div className="flex items-center justify-between">
+                <h3 className="text-xs font-bold text-[#8B95A1] uppercase tracking-wider">
+                  링크 노출 관리
+                </h3>
+                <span className="text-[11px] font-semibold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full">
+                  {editLinks.filter(l => l.is_active).length}/{editLinks.length}개 노출
+                </span>
+              </div>
+              <p className="text-[11px] text-[#8B95A1]">
+                버튼을 눌러 각 링크를 프로필에서 바로 노출하거나 숨길 수 있습니다.
+              </p>
+
+              <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
+                {editLinks.map(link => (
+                  <div
+                    key={link.id}
+                    className="flex items-center justify-between p-2.5 bg-gray-50 hover:bg-gray-100/70 border border-gray-100 rounded-2xl transition-all"
+                  >
+                    <div className="flex items-center gap-2.5 min-w-0 flex-1 pr-2">
+                      <LinkIcon
+                        url={link.url}
+                        title={link.title}
+                        className="w-8 h-8 shrink-0 rounded-lg"
+                        size={16}
+                      />
+                      <div className="min-w-0 flex-1">
+                        <p className="text-xs font-bold text-[#191F28] truncate">{link.title}</p>
+                        <span className="text-[10px] text-[#8B95A1] truncate block mt-0.5">
+                          {link.section || '기타'}
+                        </span>
+                      </div>
+                    </div>
                     <Button
+                      type="button"
                       size="sm"
                       variant={link.is_active ? 'default' : 'outline'}
                       onClick={() => toggleLinkActive(link.id)}
-                      className="text-xs shrink-0"
+                      className={`text-xs h-7 px-3 rounded-xl transition-all cursor-pointer ${
+                        link.is_active
+                          ? 'bg-blue-600 hover:bg-blue-700 text-white shadow-xs'
+                          : 'text-[#8B95A1] bg-white border-gray-200 hover:text-[#4E5968]'
+                      }`}
                     >
                       {link.is_active ? '노출' : '숨김'}
                     </Button>
-                    <button
-                      onClick={() => deleteLink(link.id)}
-                      className="p-1.5 text-red-500 hover:text-red-600 hover:bg-red-50 rounded-lg"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
                   </div>
-                  <Input
-                    value={link.description || ''}
-                    onChange={e => updateLink(link.id, 'description', e.target.value)}
-                    placeholder="설명"
-                    className="bg-white text-xs"
-                  />
-                  <Input
-                    value={link.url}
-                    onChange={e => updateLink(link.id, 'url', e.target.value)}
-                    placeholder="https://..."
-                    className="bg-white text-xs"
-                  />
-                  <Input
-                    value={link.section || ''}
-                    onChange={e => updateLink(link.id, 'section', e.target.value)}
-                    placeholder="섹션 이름"
-                    className="bg-white text-xs"
-                  />
-                </div>
-              ))}
+                ))}
+              </div>
 
-              {/* Add Link */}
-              <div className="p-3 border border-dashed border-gray-200 rounded-2xl space-y-2 bg-white">
-                <p className="text-xs font-bold text-gray-700 flex items-center gap-1">
-                  <Plus className="w-3.5 h-3.5" /> 새 링크 추가
-                </p>
-                <Input
-                  placeholder="제목"
-                  value={newTitle}
-                  onChange={e => setNewTitle(e.target.value)}
-                />
-                <Input
-                  placeholder="설명"
-                  value={newDescription}
-                  onChange={e => setNewDescription(e.target.value)}
-                />
-                <Input
-                  placeholder="URL"
-                  value={newUrl}
-                  onChange={e => setNewUrl(e.target.value)}
-                />
-                <Input
-                  placeholder="섹션 (예: 🚀 주요 프로젝트 & 포트폴리오)"
-                  value={newSection}
-                  onChange={e => setNewSection(e.target.value)}
-                />
-                <Button size="sm" onClick={handleAddLink} className="w-full text-xs">
-                  추가하기
-                </Button>
+              {/* 안내 문구 */}
+              <div className="p-2.5 rounded-xl bg-blue-50/70 border border-blue-100 text-[11px] text-blue-700 flex items-start gap-1.5 leading-relaxed">
+                <span>💡</span>
+                <span>
+                  링크 내용 수정은 메인 링크 카드의 <strong>연필(수정)</strong> 아이콘을, 새 링크 추가는 <strong>[링크 추가]</strong> 버튼을 이용해주세요.
+                </span>
               </div>
             </div>
 
             <div className="flex justify-end gap-2 pt-2 border-t border-gray-100">
-              <Button variant="outline" onClick={() => setIsEditing(false)}>
+              <Button
+                variant="outline"
+                disabled={isSavingProfile}
+                onClick={() => setIsEditing(false)}
+                className="rounded-xl cursor-pointer"
+              >
                 취소
               </Button>
-              <Button onClick={handleSave}>
-                저장하기
+              <Button
+                onClick={handleSave}
+                disabled={isSavingProfile}
+                className="bg-blue-600 hover:bg-blue-700 text-white rounded-xl cursor-pointer"
+              >
+                {isSavingProfile ? (
+                  <>
+                    <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
+                    저장 중...
+                  </>
+                ) : (
+                  '저장하기'
+                )}
               </Button>
             </div>
           </Card>
@@ -643,6 +936,17 @@ export default function Page() {
         existingSections={sections.length > 0 ? sections : ['🚀 주요 프로젝트 & 포트폴리오', '📢 소셜 채널']}
         defaultSection={dialogDefaultSection}
         onAddLink={handleAddNewLink}
+      />
+
+      {/* ── Delete Link Confirmation Dialog ── */}
+      <DeleteLinkDialog
+        open={Boolean(deletingLink)}
+        onOpenChange={(open) => {
+          if (!open) setDeletingLink(null);
+        }}
+        link={deletingLink}
+        onConfirmDelete={handleConfirmDelete}
+        isDeleting={isDeleting}
       />
     </div>
   );

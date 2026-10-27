@@ -16,7 +16,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { LinkItem } from '@/lib/types';
-import { PlusCircle, Globe, Type, FileText, FolderPlus, AlertCircle } from 'lucide-react';
+import { PlusCircle, Globe, Type, FileText, FolderPlus, AlertCircle, Loader2 } from 'lucide-react';
 
 const EMOJI_PRESETS = ['🚀', '🎨', '📖', '📺', '💬', '💻', '🔗', '⭐'];
 
@@ -158,9 +158,9 @@ export function AddLinkDialog({
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={(val) => !isSubmitting && onOpenChange(val)}>
       <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
-        <DialogClose />
+        {!isSubmitting && <DialogClose />}
 
         <DialogHeader>
           <div className="flex items-center gap-2 mb-1">
@@ -309,6 +309,7 @@ export function AddLinkDialog({
             <Button
               type="button"
               variant="outline"
+              disabled={isSubmitting}
               onClick={() => onOpenChange(false)}
             >
               취소
@@ -318,7 +319,14 @@ export function AddLinkDialog({
               disabled={isSubmitting}
               className="bg-blue-600 hover:bg-blue-700 text-white cursor-pointer"
             >
-              {isSubmitting ? '추가 중...' : '추가하기'}
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
+                  추가 중...
+                </>
+              ) : (
+                '추가하기'
+              )}
             </Button>
           </DialogFooter>
         </form>

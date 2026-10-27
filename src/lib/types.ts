@@ -3,6 +3,8 @@ export interface SocialLinks {
   instagram?: string;
   youtube?: string;
   email?: string;
+  blog?: string;
+  [key: string]: string | undefined;
 }
 
 export interface Profile {
@@ -25,4 +27,6 @@ export interface LinkItem {
   createAt?: any;
   createdAt?: any;
   created_at?: any;
+  updatedAt?: any;
+  updated_at?: any;
 }
