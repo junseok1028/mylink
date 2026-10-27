@@ -96,6 +96,8 @@ export default function Page() {
   // ---- New state for dynamic social addition ----
   const [newSocialType, setNewSocialType] = useState<'' | 'github' | 'instagram' | 'youtube' | 'email'>('');
   const [newSocialUrl, setNewSocialUrl] = useState('');
+  // Email copy modal
+  const [isEmailModalOpen, setIsEmailModalOpen] = useState(false);
 
   const showToast = (msg: string) => {
     setToastMessage(msg);
@@ -449,69 +451,32 @@ export default function Page() {
             </p>
           </div>
 
-          {/* Social Badges (Pill Buttons: GitHub, Insta, Email) */}
-          <div className="flex flex-wrap items-center justify-center gap-2 pt-1">
-            {profile.socials.github && (
-              <a
-                href={profile.socials.github}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-gray-100 hover:bg-gray-200/80 active:scale-95 text-xs font-semibold text-[#333D4B] transition-all"
-              >
-                <GithubIcon className="w-3.5 h-3.5" />
-                <span>GitHub</span>
-              </a>
-            )}
+          {/* Social Badges: GitHub + Email only */}
+          {(profile.socials.github || profile.socials.email) && (
+            <div className="flex flex-wrap items-center justify-center gap-2 pt-1">
+              {profile.socials.github && (
+                <a
+                  href={profile.socials.github.startsWith('http') ? profile.socials.github : `https://${profile.socials.github}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-gray-100 hover:bg-gray-200/80 active:scale-95 text-xs font-semibold text-[#333D4B] transition-all"
+                >
+                  <GithubIcon className="w-3.5 h-3.5" />
+                  <span>GitHub</span>
+                </a>
+              )}
+              {profile.socials.email && (
+                <button
+                  onClick={() => setIsEmailModalOpen(true)}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-gray-100 hover:bg-gray-200/80 active:scale-95 text-xs font-semibold text-[#333D4B] transition-all"
+                >
+                  <EmailIcon className="w-3.5 h-3.5" />
+                  <span>Email</span>
+                </button>
+              )}
+            </div>
+          )}
 
-            {profile.socials.instagram && (
-              <a
-                href={profile.socials.instagram}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-gray-100 hover:bg-gray-200/80 active:scale-95 text-xs font-semibold text-[#333D4B] transition-all"
-              >
-                <InstagramIcon className="w-3.5 h-3.5" />
-                <span>Insta</span>
-              </a>
-            )}
-
-            {profile.socials.email && (
-              <button
-                onClick={() => {
-                  navigator.clipboard.writeText(profile.socials.email ?? '');
-                  showToast('이메일 주소가 복사되었습니다');
-                }}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-gray-100 hover:bg-gray-200/80 active:scale-95 text-xs font-semibold text-[#333D4B] transition-all"
-              >
-                <EmailIcon className="w-3.5 h-3.5" />
-                <span>Email</span>
-              </button>
-            )}
-
-            {profile.socials.youtube && (
-              <a
-                href={profile.socials.youtube.startsWith('http') ? profile.socials.youtube : `https://${profile.socials.youtube}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-gray-100 hover:bg-gray-200/80 active:scale-95 text-xs font-semibold text-[#333D4B] transition-all"
-              >
-                <YoutubeIcon className="w-3.5 h-3.5 text-red-500" />
-                <span>YouTube</span>
-              </a>
-            )}
-
-            {profile.socials.blog && (
-              <a
-                href={profile.socials.blog.startsWith('http') ? profile.socials.blog : `https://${profile.socials.blog}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-gray-100 hover:bg-gray-200/80 active:scale-95 text-xs font-semibold text-[#333D4B] transition-all"
-              >
-                <WebGlobeIcon className="w-3.5 h-3.5 text-blue-500" />
-                <span>Blog</span>
-              </a>
-            )}
-          </div>
         </section>
 
         {/* ── Link Sections: Section Header + Link Button Cards ── */}
@@ -610,6 +575,45 @@ export default function Page() {
         </div>
       )}
 
+      {/* ── Email Copy Modal ── */}
+      {isEmailModalOpen && (
+        <div
+          className="fixed inset-0 bg-black/40 backdrop-blur-xs flex items-center justify-center z-50 p-4"
+          onClick={() => setIsEmailModalOpen(false)}
+        >
+          <div
+            className="bg-white rounded-3xl shadow-2xl p-6 w-full max-w-sm space-y-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between">
+              <h3 className="text-base font-bold text-[#191F28]">이메일 주소</h3>
+              <button
+                onClick={() => setIsEmailModalOpen(false)}
+                className="p-1 rounded-full text-gray-400 hover:text-gray-700 hover:bg-gray-100"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="flex items-center gap-3 bg-gray-50 rounded-2xl px-4 py-3">
+              <EmailIcon className="w-4 h-4 text-gray-400 shrink-0" />
+              <span className="text-sm font-medium text-[#191F28] flex-1 break-all">
+                {profile.socials.email}
+              </span>
+            </div>
+            <button
+              onClick={() => {
+                navigator.clipboard.writeText(profile.socials.email ?? '');
+                showToast('이메일 주소가 복사되었습니다 ✓');
+                setIsEmailModalOpen(false);
+              }}
+              className="w-full py-3 rounded-2xl bg-[#3182F6] text-white text-sm font-semibold hover:bg-blue-600 active:scale-95 transition-all"
+            >
+              복사하기
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* ── Edit Modal ── */}
       {isEditing && (
         <div className="fixed inset-0 bg-black/40 backdrop-blur-xs flex items-center justify-center z-50 p-4">
@@ -658,11 +662,13 @@ export default function Page() {
 
             <hr className="border-gray-100" />
 
-            {/* 2. 소셜 아이콘 링크 설정 (GitHub, Insta, Email, YouTube, Blog) */}
+            {/* 2. 소셜 링크 설정 (GitHub, Email 2개만) */}
             <div className="space-y-3">
-              {/* Existing fields */}
+              <h3 className="text-xs font-bold text-[#8B95A1] uppercase tracking-wider">소셜 링크</h3>
               <div className="flex flex-col space-y-1">
-                <label className="text-xs font-semibold text-[#4E5968]">GitHub</label>
+                <label className="text-xs font-semibold text-[#4E5968] flex items-center gap-1.5">
+                  <GithubIcon className="w-3.5 h-3.5" /> GitHub URL
+                </label>
                 <Input
                   value={editProfile.socials.github ?? ''}
                   onChange={(e) =>
@@ -675,33 +681,9 @@ export default function Page() {
                 />
               </div>
               <div className="flex flex-col space-y-1">
-                <label className="text-xs font-semibold text-[#4E5968]">Instagram</label>
-                <Input
-                  value={editProfile.socials.instagram ?? ''}
-                  onChange={(e) =>
-                    setEditProfile((p) => ({
-                      ...p,
-                      socials: { ...p.socials, instagram: e.target.value },
-                    }))
-                  }
-                  placeholder="https://instagram.com/username"
-                />
-              </div>
-              <div className="flex flex-col space-y-1">
-                <label className="text-xs font-semibold text-[#4E5968]">YouTube</label>
-                <Input
-                  value={editProfile.socials.youtube ?? ''}
-                  onChange={(e) =>
-                    setEditProfile((p) => ({
-                      ...p,
-                      socials: { ...p.socials, youtube: e.target.value },
-                    }))
-                  }
-                  placeholder="https://youtube.com/channel/..."
-                />
-              </div>
-              <div className="flex flex-col space-y-1">
-                <label className="text-xs font-semibold text-[#4E5968]">Email</label>
+                <label className="text-xs font-semibold text-[#4E5968] flex items-center gap-1.5">
+                  <EmailIcon className="w-3.5 h-3.5" /> 이메일 (Email)
+                </label>
                 <Input
                   value={editProfile.socials.email ?? ''}
                   onChange={(e) =>
@@ -711,130 +693,6 @@ export default function Page() {
                     }))
                   }
                   placeholder="example@domain.com"
-                />
-              </div>
-              {/* Add new social entry */}
-              <div className="flex items-center gap-2 pt-2">
-                <select
-                  value={newSocialType}
-                  onChange={(e) => setNewSocialType(e.target.value as any)}
-                  className="rounded border-gray-300 text-sm"
-                >
-                  <option value="">소셜 선택</option>
-                  <option value="github">GitHub</option>
-                  <option value="instagram">Instagram</option>
-                  <option value="youtube">YouTube</option>
-                  <option value="email">Email</option>
-                </select>
-                <Input
-                  placeholder="URL 혹은 Email"
-                  value={newSocialUrl}
-                  onChange={(e) => setNewSocialUrl(e.target.value)}
-                  className="flex-1"
-                />
-                <Button
-                  size="sm"
-                  onClick={() => {
-                    if (!newSocialType || !newSocialUrl.trim()) return;
-                    setEditProfile((p) => ({
-                      ...p,
-                      socials: { ...p.socials, [newSocialType]: newSocialUrl.trim() },
-                    }));
-                    setNewSocialType('');
-                    setNewSocialUrl('');
-                  }}
-                >
-                  추가
-                </Button>
-              </div>
-            </div>
-            <div className="space-y-3">
-              <div className="flex flex-col">
-                <h3 className="text-xs font-bold text-[#8B95A1] uppercase tracking-wider">
-                  소셜 아이콘 뱃지
-                </h3>
-                <p className="text-[11px] text-[#8B95A1] mt-0.5">
-                  입력된 소셜 링크만 프로필 하단에 작은 아이콘 뱃지로 표시됩니다.
-                </p>
-              </div>
-
-              <div>
-                <label className="text-xs font-semibold text-[#4E5968] mb-1 flex items-center gap-1.5">
-                  <GithubIcon className="w-3.5 h-3.5" /> GitHub URL
-                </label>
-                <Input
-                  value={editProfile.socials.github || ''}
-                  onChange={e =>
-                    setEditProfile({
-                      ...editProfile,
-                      socials: { ...editProfile.socials, github: e.target.value },
-                    })
-                  }
-                  placeholder="https://github.com/..."
-                />
-              </div>
-
-              <div>
-                <label className="text-xs font-semibold text-[#4E5968] mb-1 flex items-center gap-1.5">
-                  <InstagramIcon className="w-3.5 h-3.5 text-pink-500" /> Instagram URL
-                </label>
-                <Input
-                  value={editProfile.socials.instagram || ''}
-                  onChange={e =>
-                    setEditProfile({
-                      ...editProfile,
-                      socials: { ...editProfile.socials, instagram: e.target.value },
-                    })
-                  }
-                  placeholder="https://instagram.com/..."
-                />
-              </div>
-
-              <div>
-                <label className="text-xs font-semibold text-[#4E5968] mb-1 flex items-center gap-1.5">
-                  <EmailIcon className="w-3.5 h-3.5 text-blue-500" /> 이메일 (Email)
-                </label>
-                <Input
-                  value={editProfile.socials.email || ''}
-                  onChange={e =>
-                    setEditProfile({
-                      ...editProfile,
-                      socials: { ...editProfile.socials, email: e.target.value },
-                    })
-                  }
-                  placeholder="user@example.com 또는 mailto:..."
-                />
-              </div>
-
-              <div>
-                <label className="text-xs font-semibold text-[#4E5968] mb-1 flex items-center gap-1.5">
-                  <YoutubeIcon className="w-3.5 h-3.5 text-red-500" /> YouTube URL
-                </label>
-                <Input
-                  value={editProfile.socials.youtube || ''}
-                  onChange={e =>
-                    setEditProfile({
-                      ...editProfile,
-                      socials: { ...editProfile.socials, youtube: e.target.value },
-                    })
-                  }
-                  placeholder="https://youtube.com/@..."
-                />
-              </div>
-
-              <div>
-                <label className="text-xs font-semibold text-[#4E5968] mb-1 flex items-center gap-1.5">
-                  <WebGlobeIcon className="w-3.5 h-3.5 text-emerald-500" /> 블로그 / 웹사이트 URL
-                </label>
-                <Input
-                  value={editProfile.socials.blog || ''}
-                  onChange={e =>
-                    setEditProfile({
-                      ...editProfile,
-                      socials: { ...editProfile.socials, blog: e.target.value },
-                    })
-                  }
-                  placeholder="https://velog.io/@..."
                 />
               </div>
             </div>
