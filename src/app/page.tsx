@@ -247,9 +247,7 @@ export default function Page() {
   const handleCopyProfileLink = () => {
     if (typeof window !== 'undefined') {
       navigator.clipboard.writeText(window.location.href);
-      toast.success('내 프로필 링크가 복사되었어요!', {
-        description: window.location.href,
-      });
+      toast.success('프로필 링크가 복사되었습니다');
     }
   };
 
@@ -739,7 +737,7 @@ export default function Page() {
               onClick={() => {
                 const targetEmail = profile.socials.email || user?.email || '';
                 navigator.clipboard.writeText(targetEmail);
-                toast.success('이메일 주소가 복사되었습니다 ✓');
+                toast.success('이메일 주소가 복사되었습니다');
                 setIsEmailModalOpen(false);
               }}
               className="w-full py-3 rounded-2xl bg-[#3182F6] text-white text-sm font-semibold hover:bg-blue-600 active:scale-95 transition-all cursor-pointer"

@@ -21,7 +21,22 @@ export default function RootLayout({
       <body className="min-h-full flex flex-col font-sans">
         <AuthProvider>
           {children}
-          <Toaster position="top-center" richColors closeButton />
+          <Toaster
+            position="top-center"
+            theme="dark"
+            toastOptions={{
+              style: {
+                background: '#191F28',
+                color: '#FFFFFF',
+                borderRadius: '16px',
+                border: '1px solid rgba(255, 255, 255, 0.12)',
+                boxShadow: '0 10px 25px -4px rgba(0, 0, 0, 0.3)',
+                fontSize: '13px',
+                fontWeight: '500',
+                padding: '11px 16px',
+              },
+            }}
+          />
         </AuthProvider>
       </body>
     </html>
