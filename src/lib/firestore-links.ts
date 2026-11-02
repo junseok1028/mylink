@@ -8,6 +8,8 @@ import {
   deleteDoc,
   onSnapshot,
   query,
+  where,
+  limit,
   orderBy,
   serverTimestamp,
 } from 'firebase/firestore';
@@ -199,32 +201,205 @@ export async function updateLinkInFirestore(
   await setDoc(docRef, cleanUpdates, { merge: true });
 }
 
-/**
- * 사용자 프로필 정보 조회 (users/{userId}/metadata/profile)
- */
-export async function getUserProfileFromFirestore(userId: string): Promise<Profile | null> {
-  try {
-    const docRef = doc(db, 'users', userId, 'metadata', 'profile');
-    const snap = await getDoc(docRef);
-    if (snap.exists()) {
-      return snap.data() as Profile;
-    }
-  } catch (err) {
-    console.warn(`getUserProfileFromFirestore error (users/${userId}/metadata/profile):`, err);
-  }
-  return null;
+function cleanProfileData(profile: Profile): Record<string, any> {
+  return {
+    username: (profile.username || profile.display_name || '').trim(),
+    display_name: (profile.display_name || '').trim(),
+    handle: (profile.handle || '').trim(),
+    bio: (profile.bio || '').trim(),
+    avatar_url: profile.avatar_url || '',
+    socials: {
+      github: profile.socials?.github?.trim() || '',
+      instagram: profile.socials?.instagram?.trim() || '',
+      youtube: profile.socials?.youtube?.trim() || '',
+      email: profile.socials?.email?.trim() || '',
+      blog: profile.socials?.blog?.trim() || '',
+    },
+  };
 }
 
 /**
- * 사용자 프로필 정보 저장 (users/{userId}/metadata/profile)
+ * 사용자 프로필 정보 조회
+ * 1. users/{userId}/metadata/profile (기존 호환)
+ * 2. users/{userId}/profile/profile 및 users/{userId}/profile 서브컬렉션
+ * 3. users/{userId} 문서 (bio, displayName 필드)
+ */
+export async function getUserProfileFromFirestore(userId: string): Promise<Profile | null> {
+  let foundProfile: Profile | null = null;
+
+  // 1. users/{userId}/metadata/profile 확인 (기존 프로필 데이터 저장 경로)
+  try {
+    const metaRef = doc(db, 'users', userId, 'metadata', 'profile');
+    const metaSnap = await getDoc(metaRef);
+    if (metaSnap.exists()) {
+      const data = metaSnap.data();
+      foundProfile = {
+        username: data.username || data.display_name || '',
+        display_name: data.display_name || data.username || '',
+        handle: data.handle || '',
+        bio: data.bio || '',
+        avatar_url: data.avatar_url || '',
+        socials: data.socials || {},
+      };
+      if (foundProfile.bio) return foundProfile;
+    }
+  } catch (err) {
+    // 계속 진행
+  }
+
+  // 2. users/{userId}/profile 서브컬렉션 확인
+  try {
+    const profileDocRef = doc(db, 'users', userId, 'profile', 'profile');
+    const profileDocSnap = await getDoc(profileDocRef);
+    if (profileDocSnap.exists()) {
+      const data = profileDocSnap.data();
+      const p: Profile = {
+        username: data.username || data.display_name || '',
+        display_name: data.display_name || data.username || '',
+        handle: data.handle || '',
+        bio: data.bio || '',
+        avatar_url: data.avatar_url || '',
+        socials: data.socials || {},
+      };
+      if (p.bio) return p;
+      if (!foundProfile) foundProfile = p;
+    }
+  } catch (err) {
+    // 계속 진행
+  }
+
+  // 3. users/{userId} 루트 문서 확인
+  try {
+    const userRef = doc(db, 'users', userId);
+    const userSnap = await getDoc(userRef);
+    if (userSnap.exists()) {
+      const data = userSnap.data();
+      const rootProfile: Profile = {
+        username: data.displayName || data.display_name || foundProfile?.username || '',
+        display_name: data.displayName || data.display_name || foundProfile?.display_name || '',
+        handle: data.handle || foundProfile?.handle || '',
+        bio: data.bio || foundProfile?.bio || '',
+        avatar_url: data.avatar_url || data.photoURL || foundProfile?.avatar_url || '',
+        socials: data.socials || foundProfile?.socials || {},
+      };
+      if (rootProfile.bio || rootProfile.display_name) return rootProfile;
+    }
+  } catch (err) {
+    // 계속 진행
+  }
+
+  return foundProfile;
+}
+
+/**
+ * 사용자 프로필 정보 저장
+ * - users/{userId}/metadata/profile (기존 호환)
+ * - users/{userId}/profile/profile (서브컬렉션 profile 호환)
+ * - users/{userId} (where 쿼리 검색용 displayName 및 bio 필드 동기화)
  */
 export async function saveUserProfileToFirestore(userId: string, profile: Profile): Promise<void> {
+  const cleaned = cleanProfileData(profile);
+
+  // 1. users/{userId}/metadata/profile 저장
   try {
-    const docRef = doc(db, 'users', userId, 'metadata', 'profile');
-    await setDoc(docRef, profile, { merge: true });
+    const fallbackRef = doc(db, 'users', userId, 'metadata', 'profile');
+    await setDoc(fallbackRef, cleaned, { merge: true });
   } catch (err) {
-    console.warn(`saveUserProfileToFirestore error (users/${userId}/metadata/profile):`, err);
+    console.warn(`saveUserProfileToFirestore metadata error for user ${userId}:`, err);
   }
+
+  // 2. users/{userId}/profile/profile 저장 (profile 서브컬렉션)
+  try {
+    const primaryRef = doc(db, 'users', userId, 'profile', 'profile');
+    await setDoc(primaryRef, cleaned, { merge: true });
+  } catch (err) {
+    console.warn(`saveUserProfileToFirestore profile subcollection error for user ${userId}:`, err);
+  }
+
+  // 3. users/{userId} 메인 문서에 displayName, bio 동기화 (where 쿼리용)
+  try {
+    const userDocRef = doc(db, 'users', userId);
+    await setDoc(
+      userDocRef,
+      {
+        displayName: cleaned.display_name,
+        display_name: cleaned.display_name,
+        bio: cleaned.bio,
+        avatar_url: cleaned.avatar_url,
+        handle: cleaned.handle,
+        socials: cleaned.socials,
+        updatedAt: serverTimestamp(),
+      },
+      { merge: true }
+    );
+  } catch (err) {
+    console.warn(`saveUserProfileToFirestore root doc error for user ${userId}:`, err);
+  }
+}
+
+/**
+ * displayName으로 user 검색 (Firestore where 쿼리 활용)
+ * - users 컬렉션에서 where('displayName', '==', displayName) 쿼리
+ * - 없으면 where('display_name', '==', displayName) 쿼리
+ * - 없으면 display_names 컬렉션 인덱스 조회 (fallback)
+ */
+export async function findUserByDisplayName(
+  rawDisplayName: string
+): Promise<{ userId: string; profile: Profile | null } | null> {
+  const trimmed = (rawDisplayName || '').trim();
+  if (!trimmed) return null;
+
+  try {
+    const usersRef = collection(db, 'users');
+
+    // 1. users 컬렉션에서 where('displayName', '==', trimmed) 쿼리
+    const q1 = query(usersRef, where('displayName', '==', trimmed), limit(1));
+    const snap1 = await getDocs(q1);
+
+    if (!snap1.empty) {
+      const userDoc = snap1.docs[0];
+      const userId = userDoc.id;
+      const profile = await getUserProfileFromFirestore(userId);
+      return { userId, profile };
+    }
+
+    // 2. users 컬렉션에서 where('display_name', '==', trimmed) 쿼리
+    const q2 = query(usersRef, where('display_name', '==', trimmed), limit(1));
+    const snap2 = await getDocs(q2);
+
+    if (!snap2.empty) {
+      const userDoc = snap2.docs[0];
+      const userId = userDoc.id;
+      const profile = await getUserProfileFromFirestore(userId);
+      return { userId, profile };
+    }
+
+    // 3. display_names 컬렉션 where 쿼리 검색
+    const displayNamesRef = collection(db, 'display_names');
+    const q3 = query(displayNamesRef, where('displayName', '==', trimmed), limit(1));
+    const snap3 = await getDocs(q3);
+    if (!snap3.empty) {
+      const uid = snap3.docs[0].data()?.uid;
+      if (uid) {
+        const profile = await getUserProfileFromFirestore(uid);
+        return { userId: uid, profile };
+      }
+    }
+
+    // 4. display_names 문서 키 직접 조회 (소문자 정규화 fallback)
+    const directSnap = await getDoc(doc(db, 'display_names', trimmed.toLowerCase()));
+    if (directSnap.exists()) {
+      const uid = directSnap.data()?.uid;
+      if (uid) {
+        const profile = await getUserProfileFromFirestore(uid);
+        return { userId: uid, profile };
+      }
+    }
+  } catch (err) {
+    console.error('findUserByDisplayName error:', err);
+  }
+
+  return null;
 }
 
 /**

@@ -40,9 +40,35 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     // onAuthStateChanged로 인증 상태 실시간 감지
-    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       setUser(currentUser);
       setLoading(false);
+
+      if (currentUser) {
+        // 최초 또는 변경 시 users/{uid} 문서에 displayName 동기화
+        const prefix = getEmailPrefix(currentUser);
+        try {
+          const { doc, getDoc, setDoc, serverTimestamp } = await import('firebase/firestore');
+          const { db } = await import('./firebase');
+          const userDocRef = doc(db, 'users', currentUser.uid);
+          const snap = await getDoc(userDocRef);
+          if (!snap.exists() || !snap.data()?.displayName) {
+            await setDoc(
+              userDocRef,
+              {
+                displayName: prefix,
+                display_name: prefix,
+                email: currentUser.email || null,
+                photoURL: currentUser.photoURL || null,
+                updatedAt: serverTimestamp(),
+              },
+              { merge: true }
+            );
+          }
+        } catch (e) {
+          // 비동기 백그라운드 동기화 실패 시 무시
+        }
+      }
     });
 
     return () => unsubscribe();

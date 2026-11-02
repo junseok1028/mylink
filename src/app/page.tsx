@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useMemo } from 'react';
+import Link from 'next/link';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Profile, LinkItem } from '@/lib/types';
 import { useAuth, getEmailPrefix } from '@/lib/auth-context';
@@ -131,21 +132,38 @@ export default function Page() {
 
   // 로컬 캐시 fallback 포함한 최종 profile/links
   const emailPrefix = user ? getEmailPrefix(user) : '';
-  const defaultProfile: Profile = {
-    username: emailPrefix,
-    display_name: emailPrefix,
-    handle: emailPrefix,
-    bio: '나만의 링크와 소개를 작성해보세요 🚀',
-    avatar_url: user?.photoURL || '',
-    socials: { email: user?.email || '' },
-  };
-  const profile: Profile = firestoreProfile
-    ? {
+  const storedProfile = user ? getStoredUserProfile(user.uid) : null;
+  const defaultProfile: Profile = useMemo(
+    () => ({
+      username: emailPrefix,
+      display_name: emailPrefix,
+      handle: emailPrefix,
+      bio: '나만의 링크와 소개를 작성해보세요 🚀',
+      avatar_url: user?.photoURL || '',
+      socials: { email: user?.email || '' },
+    }),
+    [emailPrefix, user?.photoURL, user?.email]
+  );
+
+  const profile: Profile = useMemo(() => {
+    if (firestoreProfile) {
+      return {
+        ...defaultProfile,
+        ...storedProfile,
         ...firestoreProfile,
-        display_name: firestoreProfile.display_name || emailPrefix,
-        avatar_url: firestoreProfile.avatar_url || user?.photoURL || '',
-      }
-    : (getStoredUserProfile(user?.uid || '') ?? defaultProfile);
+        display_name: firestoreProfile.display_name || storedProfile?.display_name || emailPrefix,
+        bio: firestoreProfile.bio || storedProfile?.bio || defaultProfile.bio,
+        avatar_url: firestoreProfile.avatar_url || user?.photoURL || storedProfile?.avatar_url || '',
+        socials: {
+          ...defaultProfile.socials,
+          ...storedProfile?.socials,
+          ...firestoreProfile.socials,
+        },
+      };
+    }
+    return storedProfile ?? defaultProfile;
+  }, [firestoreProfile, storedProfile, defaultProfile, emailPrefix, user?.photoURL]);
+
   const links: LinkItem[] = firestoreLinks ?? getStoredUserLinks(user?.uid || '') ?? [];
 
   // UI state
@@ -230,6 +248,8 @@ export default function Page() {
       for (const link of updatedLinks) {
         await updateLinkInFirestore(user.uid, link.id, { is_active: link.is_active });
       }
+      queryClient.invalidateQueries({ queryKey: ['profile', user.uid] });
+      queryClient.invalidateQueries({ queryKey: ['links', user.uid] });
       toast.success('프로필과 링크 설정이 저장되었어요! ✨');
       setIsEditing(false);
     } catch (err) {
@@ -359,7 +379,16 @@ export default function Page() {
               </button>
             ) : (
               /* ── 로그인 상태 : 우측 프로필 아바타 + Base UI 드롭다운 메뉴 ── */
-              <div className="flex items-center gap-1">
+              <div className="flex items-center gap-1.5">
+                {/* 개인별 페이지 바로 이동 버튼 */}
+                <Link
+                  href={`/${encodeURIComponent(profile.display_name || displayName)}`}
+                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-blue-50 hover:bg-blue-100 text-blue-600 text-xs font-semibold transition-all active:scale-95"
+                  title="내 개인별 프로필 페이지 보기"
+                >
+                  <span>내 페이지</span>
+                </Link>
+
                 {/* 빠른 공유 버튼 */}
                 <button
                   onClick={handleShare}
@@ -515,15 +544,6 @@ export default function Page() {
                 <p className="text-[14px] text-[#4E5968] mt-1.5 font-medium px-4">
                   &quot;{profile.bio || '나만의 링크를 한곳에서 관리해보세요 🚀'}&quot;
                 </p>
-                <div className="pt-2">
-                  <button
-                    onClick={handleOpenEdit}
-                    className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-gray-100 hover:bg-gray-200/80 active:scale-95 text-xs font-semibold text-[#4E5968] hover:text-[#191F28] transition-all cursor-pointer"
-                  >
-                    <Settings className="w-3.5 h-3.5 text-[#8B95A1]" />
-                    <span>프로필 수정</span>
-                  </button>
-                </div>
               </div>
 
               {/* Social Badges: GitHub + Instagram + YouTube + Email + Blog */}

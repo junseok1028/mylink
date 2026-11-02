@@ -1,10 +1,12 @@
 'use client';
 
 import * as React from 'react';
+import { useRouter } from 'next/navigation';
 import { Menu } from '@base-ui/react/menu';
 import {
   Link2,
   ExternalLink,
+  UserCheck,
   Settings,
   PlusCircle,
   RefreshCw,
@@ -38,17 +40,29 @@ export function ProfileDropdown({
   onLogout,
   isRefreshing,
 }: ProfileDropdownProps) {
+  const router = useRouter();
   const [copied, setCopied] = React.useState(false);
 
+  const profilePath = `/${encodeURIComponent(displayName)}`;
+
   const handleCopy = () => {
-    onCopyLink();
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    if (typeof window !== 'undefined') {
+      const fullUrl = `${window.location.origin}${profilePath}`;
+      navigator.clipboard.writeText(fullUrl);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } else {
+      onCopyLink();
+    }
+  };
+
+  const handleNavigateToProfile = () => {
+    router.push(profilePath);
   };
 
   const handleOpenProfileInNewTab = () => {
     if (typeof window !== 'undefined') {
-      window.open(window.location.href, '_blank', 'noopener,noreferrer');
+      window.open(profilePath, '_blank', 'noopener,noreferrer');
     }
   };
 
@@ -89,6 +103,25 @@ export function ProfileDropdown({
             </div>
 
             {/* Menu Items */}
+            {/* 1. 개인별 페이지 이동 */}
+            <Menu.Item
+              onClick={handleNavigateToProfile}
+              className="flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-semibold text-blue-600 bg-blue-50/70 hover:bg-blue-100/70 cursor-pointer outline-none transition-colors"
+            >
+              <UserCheck className="w-4 h-4 text-blue-600" />
+              <span>내 프로필 페이지로 이동</span>
+            </Menu.Item>
+
+            {/* 2. 새 탭에서 열기 */}
+            <Menu.Item
+              onClick={handleOpenProfileInNewTab}
+              className="flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-medium hover:bg-gray-100 cursor-pointer outline-none transition-colors"
+            >
+              <ExternalLink className="w-4 h-4 text-[#8B95A1]" />
+              <span>새 탭에서 내 페이지 보기</span>
+            </Menu.Item>
+
+            {/* 3. 내 프로필 링크 복사 */}
             <Menu.Item
               onClick={handleCopy}
               className="flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-medium hover:bg-blue-50 hover:text-blue-600 cursor-pointer outline-none transition-colors"
@@ -101,14 +134,9 @@ export function ProfileDropdown({
               <span>{copied ? '링크 복사 완료!' : '내 프로필 링크 복사'}</span>
             </Menu.Item>
 
-            <Menu.Item
-              onClick={handleOpenProfileInNewTab}
-              className="flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-medium hover:bg-gray-100 cursor-pointer outline-none transition-colors"
-            >
-              <ExternalLink className="w-4 h-4 text-[#8B95A1]" />
-              <span>새 탭에서 내 프로필 보기</span>
-            </Menu.Item>
+            <div className="h-px bg-gray-100 my-1" />
 
+            {/* 4. 프로필 및 링크 설정 */}
             <Menu.Item
               onClick={onOpenEdit}
               className="flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-medium hover:bg-gray-100 cursor-pointer outline-none transition-colors"
@@ -117,6 +145,7 @@ export function ProfileDropdown({
               <span>프로필 및 링크 설정</span>
             </Menu.Item>
 
+            {/* 5. 새 링크 추가 */}
             <Menu.Item
               onClick={onAddLink}
               className="flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-medium hover:bg-gray-100 cursor-pointer outline-none transition-colors"
@@ -125,6 +154,7 @@ export function ProfileDropdown({
               <span>새 링크 추가</span>
             </Menu.Item>
 
+            {/* 6. 최신 데이터 동기화 */}
             <Menu.Item
               onClick={onRefresh}
               className="flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-medium hover:bg-gray-100 cursor-pointer outline-none transition-colors"
@@ -137,6 +167,7 @@ export function ProfileDropdown({
 
             <div className="h-px bg-gray-100 my-1" />
 
+            {/* 7. 로그아웃 */}
             <Menu.Item
               onClick={onLogout}
               className="flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-medium text-red-600 hover:bg-red-50 cursor-pointer outline-none transition-colors"
