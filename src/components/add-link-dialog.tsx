@@ -238,7 +238,7 @@ export function AddLinkDialog({
               상세 설명 <span className="text-[#8B95A1] font-normal">(선택)</span>
             </label>
             <Input
-              placeholder="예: 토스 디자인 시스템 기반의 바이오 프로필 서비스"
+              placeholder="예: 나만의 포트폴리오 웹사이트"
               {...register('description')}
               className={errors.description ? 'border-red-400 focus:ring-red-400/20' : ''}
             />

@@ -26,6 +26,8 @@ import { LinkCard } from '@/components/link-card';
 import { LinkIcon } from '@/components/link-icon';
 import { AddLinkDialog } from '@/components/add-link-dialog';
 import { DeleteLinkDialog } from '@/components/delete-link-dialog';
+import { ProfileDropdown } from '@/components/profile-dropdown';
+import { toast } from 'sonner';
 import {
   Share2,
   Settings,
@@ -34,12 +36,10 @@ import {
   PlusCircle,
   Loader2,
   RefreshCw,
-  LogOut,
   Sparkles,
   Link2,
   ShieldCheck,
   Smartphone,
-  ExternalLink,
 } from 'lucide-react';
 
 function GoogleIcon({ className = 'w-4 h-4' }: { className?: string }) {
@@ -94,13 +94,11 @@ export default function Page() {
   const [isLoadingLinks, setIsLoadingLinks] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isLoggingIn, setIsLoggingIn] = useState(false);
-  const [isLoggingOut, setIsLoggingOut] = useState(false);
 
   // Dialog & Modal states
   const [isEditing, setIsEditing] = useState(false);
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [dialogDefaultSection, setDialogDefaultSection] = useState<string>('🚀 주요 프로젝트 & 포트폴리오');
-  const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   // 삭제 모달 상태
   const [deletingLink, setDeletingLink] = useState<LinkItem | null>(null);
@@ -112,19 +110,14 @@ export default function Page() {
   const [editLinks, setEditLinks] = useState<LinkItem[]>([]);
   const [isEmailModalOpen, setIsEmailModalOpen] = useState(false);
 
-  const showToast = (msg: string) => {
-    setToastMessage(msg);
-    setTimeout(() => setToastMessage(null), 2500);
-  };
-
   const handleGoogleLogin = async () => {
     setIsLoggingIn(true);
     try {
       await signInWithGoogle();
-      showToast('성공적으로 로그인되었습니다! 🎉');
+      toast.success('성공적으로 로그인되었습니다! 🎉');
     } catch (err: any) {
       if (err?.code !== 'auth/popup-closed-by-user') {
-        showToast('로그인에 실패했습니다. 다시 시도해주세요.');
+        toast.error('로그인에 실패했습니다. 다시 시도해주세요.');
       }
     } finally {
       setIsLoggingIn(false);
@@ -132,16 +125,13 @@ export default function Page() {
   };
 
   const handleLogout = async () => {
-    setIsLoggingOut(true);
     try {
       await logout();
       setLinks([]);
       setProfile(DEFAULT_PROFILE);
-      showToast('로그아웃되었습니다.');
+      toast.success('로그아웃되었습니다.');
     } catch (err) {
-      showToast('로그아웃 중 오류가 발생했습니다.');
-    } finally {
-      setIsLoggingOut(false);
+      toast.error('로그아웃 중 오류가 발생했습니다.');
     }
   };
 
@@ -165,7 +155,7 @@ export default function Page() {
         setEditLinks(firestoreLinks);
       } catch (err) {
         console.error('Firestore getLinks error:', err);
-        showToast('링크를 불러오는 중 문제가 발생했어요.');
+        toast.error('링크를 불러오는 중 문제가 발생했어요.');
       } finally {
         if (isInitial) {
           setIsLoadingLinks(false);
@@ -203,7 +193,6 @@ export default function Page() {
     // 1. 로컬 캐시 확인
     const cachedProfile = getStoredUserProfile(user.uid);
     if (cachedProfile) {
-      // display_name 규칙(이메일 앞부분) 보장
       setProfile({
         ...cachedProfile,
         display_name: cachedProfile.display_name || emailPrefix,
@@ -229,7 +218,6 @@ export default function Page() {
         setProfile(merged);
         saveStoredUserProfile(user.uid, merged);
       } else {
-        // 원격 프로필이 없으면 기본 생성 후 저장
         saveUserProfileToFirestore(user.uid, initialUserProfile);
       }
     });
@@ -255,6 +243,16 @@ export default function Page() {
     };
   }, [user, loadLinksFromFirestore]);
 
+  // Sonner 기반 내 프로필 링크 복사
+  const handleCopyProfileLink = () => {
+    if (typeof window !== 'undefined') {
+      navigator.clipboard.writeText(window.location.href);
+      toast.success('내 프로필 링크가 복사되었어요!', {
+        description: window.location.href,
+      });
+    }
+  };
+
   const handleShare = () => {
     if (navigator.share) {
       navigator
@@ -264,8 +262,7 @@ export default function Page() {
         })
         .catch(() => {});
     } else {
-      navigator.clipboard.writeText(window.location.href);
-      showToast('프로필 링크가 복사되었어요!');
+      handleCopyProfileLink();
     }
   };
 
@@ -296,11 +293,11 @@ export default function Page() {
           is_active: link.is_active,
         });
       }
-      showToast('저장 완료! 프로필과 설정이 저장되었어요.');
+      toast.success('프로필과 링크 설정이 저장되었어요!');
       setIsEditing(false);
     } catch (err) {
       console.warn('Firestore profile save error:', err);
-      showToast('저장 중 일부 오류가 발생했습니다.');
+      toast.error('저장 중 일부 오류가 발생했습니다.');
       setIsEditing(false);
     } finally {
       setIsSavingProfile(false);
@@ -313,7 +310,7 @@ export default function Page() {
     newLinkData: Omit<LinkItem, 'id' | 'is_active' | 'display_order'>
   ) => {
     if (!user) {
-      showToast('로그인이 필요합니다.');
+      toast.error('로그인이 필요합니다.');
       return;
     }
     setIsRefreshing(true);
@@ -324,10 +321,10 @@ export default function Page() {
         display_order: links.length + 1,
       });
 
-      showToast(`'${newItem.title}' 링크가 추가되었어요! ✨`);
+      toast.success(`'${newItem.title}' 링크가 추가되었어요! ✨`);
     } catch (error) {
       console.error('Firestore link addition error:', error);
-      showToast('링크 추가 중 오류가 발생했습니다.');
+      toast.error('링크 추가 중 오류가 발생했습니다.');
     } finally {
       setIsRefreshing(false);
     }
@@ -339,10 +336,10 @@ export default function Page() {
     setIsRefreshing(true);
     try {
       await updateLinkInFirestore(user.uid, id, updates);
-      showToast(`'${updates.title || '링크'}' 수정이 반영되었어요! ✨`);
+      toast.success(`'${updates.title || '링크'}' 수정이 반영되었어요!`);
     } catch (error) {
       console.error('Firestore link update error:', error);
-      showToast('수정 중 오류가 발생했습니다.');
+      toast.error('수정 중 오류가 발생했습니다.');
     } finally {
       setIsRefreshing(false);
     }
@@ -356,11 +353,11 @@ export default function Page() {
     setIsRefreshing(true);
     try {
       await deleteLinkFromFirestore(user.uid, id);
-      showToast(`'${targetTitle}' 링크가 삭제되었어요.`);
+      toast.success(`'${targetTitle}' 링크가 삭제되었어요.`);
       setDeletingLink(null);
     } catch (error) {
       console.error('Firestore link delete error:', error);
-      showToast('삭제 중 오류가 발생했습니다.');
+      toast.error('삭제 중 오류가 발생했습니다.');
       setDeletingLink(null);
     } finally {
       setIsDeleting(false);
@@ -385,13 +382,16 @@ export default function Page() {
         
         {/* ── Top Bar / Header ── */}
         <header className="sticky top-0 z-20 bg-white/95 backdrop-blur-md border-b border-gray-100 px-4 sm:px-5 py-3 flex justify-between items-center transition-all">
-          {/* Top Bar 좌측 타이틀: wireframe 스펙 [토스 프로필] */}
+          {/* Top Bar 좌측 브랜드 */}
           <div className="flex items-center gap-2">
-            <span className="text-[14px] font-semibold text-[#191F28] tracking-tight">
-              토스 프로필
+            <div className="w-6 h-6 rounded-lg bg-blue-600 text-white flex items-center justify-center font-bold text-xs shadow-2xs">
+              M
+            </div>
+            <span className="text-[15px] font-bold text-[#191F28] tracking-tight">
+              MyLink
             </span>
             {isRefreshing && (
-              <span className="flex items-center gap-1 text-[11px] font-medium text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full animate-pulse">
+              <span className="flex items-center gap-1 text-[11px] font-medium text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full animate-pulse ml-1">
                 <Loader2 className="w-2.5 h-2.5 animate-spin" />
                 동기화 중
               </span>
@@ -421,45 +421,33 @@ export default function Page() {
                 <span>Google로 로그인</span>
               </button>
             ) : (
-              /* ── 로그인 상태 : '홍길동님 + 로그아웃' 버튼 (display name: 이메일 앞부분) ── */
-              <div className="flex items-center gap-1.5">
-                <span className="text-xs font-semibold text-[#191F28] max-w-[85px] sm:max-w-[110px] truncate" title={user.email || ''}>
-                  {displayName}님
-                </span>
-                <button
-                  onClick={handleLogout}
-                  disabled={isLoggingOut}
-                  className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-[#8B95A1] hover:text-[#191F28] hover:bg-gray-100 rounded-lg transition-all active:scale-95 cursor-pointer disabled:opacity-50"
-                  aria-label="로그아웃"
-                >
-                  {isLoggingOut ? (
-                    <Loader2 className="w-3 h-3 animate-spin" />
-                  ) : (
-                    <LogOut className="w-3 h-3" />
-                  )}
-                  <span>로그아웃</span>
-                </button>
-
-                {/* 공유 버튼 (wireframe [ ↗ ]) */}
+              /* ── 로그인 상태 : 우측 프로필 아바타 + Base UI 드롭다운 메뉴 ── */
+              <div className="flex items-center gap-1">
+                {/* 빠른 공유 버튼 */}
                 <button
                   onClick={handleShare}
-                  className="p-1.5 rounded-full text-[#4E5968] hover:text-[#191F28] hover:bg-gray-100 active:scale-95 transition-all"
-                  aria-label="공유"
-                  title="프로필 공유하기"
+                  className="p-1.5 rounded-full text-[#4E5968] hover:text-[#191F28] hover:bg-gray-100 active:scale-95 transition-all cursor-pointer"
+                  aria-label="프로필 공유하기"
+                  title="프로필 링크 복사 및 공유"
                 >
                   <Share2 className="w-4 h-4" />
                 </button>
 
-                {/* 편집 버튼 */}
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={handleOpenEdit}
-                  className="h-7 px-2 text-xs text-[#4E5968] hover:text-[#191F28] font-medium"
-                >
-                  <Settings className="w-3 h-3 mr-1" />
-                  편집
-                </Button>
+                {/* 프로필 드롭다운 메뉴 (설정, 내 프로필 링크 복사, 새 링크 추가, 동기화, 로그아웃 등) */}
+                <ProfileDropdown
+                  user={user}
+                  displayName={displayName}
+                  avatarUrl={profile.avatar_url || user.photoURL || undefined}
+                  onCopyLink={handleCopyProfileLink}
+                  onOpenEdit={handleOpenEdit}
+                  onAddLink={() => {
+                    setDialogDefaultSection('🚀 주요 프로젝트 & 포트폴리오');
+                    setIsAddDialogOpen(true);
+                  }}
+                  onRefresh={() => loadLinksFromFirestore(false)}
+                  onLogout={handleLogout}
+                  isRefreshing={isRefreshing}
+                />
               </div>
             )}
           </div>
@@ -474,16 +462,15 @@ export default function Page() {
 
         {/* ── 화면 분기: 비로그인 상태 안내 화면 VS 로그인 상태 개인화 화면 ── */}
         {authLoading ? (
-          /* 인증 로딩 스켈레톤 */
           <div className="flex-1 flex flex-col items-center justify-center p-8 space-y-4">
             <Loader2 className="w-8 h-8 text-blue-600 animate-spin" />
             <p className="text-xs text-[#8B95A1] font-medium">인증 정보를 확인하고 있어요...</p>
           </div>
         ) : !user ? (
-          /* ── 비로그인 상태 안내 화면 ── */
+          /* ── 비로그인 상태 안내 화면 (토스 문구 제거) ── */
           <div className="flex-1 flex flex-col justify-between p-6 sm:p-7 space-y-8 animate-in fade-in duration-300">
             <div className="space-y-6 pt-4 text-center">
-              {/* 토스 스타일 원형 아이콘 */}
+              {/* 심플한 원형 아이콘 */}
               <div className="mx-auto w-20 h-20 rounded-3xl bg-blue-50 text-blue-600 flex items-center justify-center shadow-xs">
                 <Link2 className="w-10 h-10 stroke-[2.2]" />
               </div>
@@ -509,7 +496,7 @@ export default function Page() {
                     <Smartphone className="w-4 h-4" />
                   </div>
                   <div>
-                    <h2 className="text-xs font-bold text-[#191F28]">토스 스타일 깔끔한 프로필</h2>
+                    <h2 className="text-xs font-bold text-[#191F28]">깔끔하고 세련된 바이오 링크</h2>
                     <p className="text-[11px] text-[#8B95A1] mt-0.5 leading-normal">
                       모바일과 웹 어디서나 보기 좋은 모던한 카드형 UI를 제공해요.
                     </p>
@@ -664,7 +651,7 @@ export default function Page() {
                   ))}
                 </>
               ) : (
-                /* ── 링크가 없을 때 Empty State (사용자가 직접 추가 안내) ── */
+                /* ── 링크가 없을 때 Empty State ── */
                 <div className="py-12 px-6 text-center space-y-4 bg-gray-50/80 border border-gray-100 rounded-3xl">
                   <div className="w-12 h-12 mx-auto rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center">
                     <PlusCircle className="w-6 h-6" />
@@ -715,20 +702,13 @@ export default function Page() {
           </>
         )}
 
-        {/* ── Footer: Powered by MyLink · 토스 스타일 ── */}
+        {/* ── Footer: Powered by MyLink ── */}
         <footer className="text-center py-6 border-t border-gray-50 mt-auto">
           <p className="text-xs text-[#8B95A1]">
-            Powered by <span className="text-[#3182F6] font-semibold">MyLink</span> · 토스 스타일
+            Powered by <span className="text-[#3182F6] font-semibold">MyLink</span>
           </p>
         </footer>
       </div>
-
-      {/* ── Toast Notification ── */}
-      {toastMessage && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-[#191F28] text-white text-xs font-medium px-4 py-2.5 rounded-full shadow-lg z-50 animate-in fade-in slide-in-from-bottom-2">
-          {toastMessage}
-        </div>
-      )}
 
       {/* ── Email Copy Modal ── */}
       {isEmailModalOpen && (
@@ -757,8 +737,9 @@ export default function Page() {
             </div>
             <button
               onClick={() => {
-                navigator.clipboard.writeText(profile.socials.email || user?.email || '');
-                showToast('이메일 주소가 복사되었습니다 ✓');
+                const targetEmail = profile.socials.email || user?.email || '';
+                navigator.clipboard.writeText(targetEmail);
+                toast.success('이메일 주소가 복사되었습니다 ✓');
                 setIsEmailModalOpen(false);
               }}
               className="w-full py-3 rounded-2xl bg-[#3182F6] text-white text-sm font-semibold hover:bg-blue-600 active:scale-95 transition-all cursor-pointer"
@@ -769,7 +750,7 @@ export default function Page() {
         </div>
       )}
 
-      {/* ── Edit Modal (Base UI / Card Dialog) ── */}
+      {/* ── Edit Modal ── */}
       {isEditing && (
         <div className="fixed inset-0 bg-black/40 backdrop-blur-xs flex items-center justify-center z-50 p-4">
           <Card className="w-full max-w-md max-h-[85vh] overflow-y-auto p-5 space-y-5 rounded-3xl bg-white shadow-2xl">
@@ -935,7 +916,7 @@ export default function Page() {
         </div>
       )}
 
-      {/* ── Add Link Dialog (Base UI Dialog) ── */}
+      {/* ── Add Link Dialog ── */}
       <AddLinkDialog
         open={isAddDialogOpen}
         onOpenChange={setIsAddDialogOpen}
@@ -946,7 +927,7 @@ export default function Page() {
         onAddLink={handleAddNewLink}
       />
 
-      {/* ── Delete Link Confirmation Dialog (Base UI Dialog) ── */}
+      {/* ── Delete Link Confirmation Dialog ── */}
       <DeleteLinkDialog
         open={Boolean(deletingLink)}
         onOpenChange={(open) => {
