@@ -6,22 +6,19 @@ import {
   getDoc,
   getDocs,
   deleteDoc,
-  updateDoc,
   onSnapshot,
   query,
   orderBy,
   serverTimestamp,
-  Timestamp,
 } from 'firebase/firestore';
 import { db } from './firebase';
 import { LinkItem, Profile } from './types';
-import { INITIAL_LINKS } from './storage';
 
-// Firestore collection path specified: users/anonymous/links
-export const ANONYMOUS_LINKS_COLLECTION = 'users/anonymous/links';
-
-export function getLinksCollectionRef() {
-  return collection(db, 'users', 'anonymous', 'links');
+/**
+ * Firestore 사용자별 링크 컬렉션 참조: users/{userId}/links
+ */
+export function getUserLinksCollectionRef(userId: string) {
+  return collection(db, 'users', userId, 'links');
 }
 
 function getTimestampMillis(val: any): number {
@@ -36,14 +33,15 @@ function getTimestampMillis(val: any): number {
 
 /**
  * Firestore에 새 링크를 추가합니다.
- * 경로: users/anonymous/links
+ * 경로: users/{userId}/links
  */
 export async function addLinkToFirestore(
+  userId: string,
   link: Omit<LinkItem, 'id'> & { id?: string }
 ): Promise<LinkItem> {
-  const collectionRef = getLinksCollectionRef();
+  const collectionRef = getUserLinksCollectionRef(userId);
   const now = serverTimestamp();
-  
+
   const linkData = {
     title: link.title,
     url: link.url,
@@ -81,13 +79,14 @@ export async function addLinkToFirestore(
 }
 
 /**
- * Firestore의 users/anonymous/links 문서들을 실시간 구독합니다.
+ * Firestore의 users/{userId}/links 문서들을 실시간 구독합니다.
  */
-export function subscribeToLinks(
+export function subscribeToUserLinks(
+  userId: string,
   onSuccess: (links: LinkItem[]) => void,
   onError?: (error: unknown) => void
 ): () => void {
-  const collectionRef = getLinksCollectionRef();
+  const collectionRef = getUserLinksCollectionRef(userId);
   const q = query(collectionRef);
 
   return onSnapshot(
@@ -120,26 +119,24 @@ export function subscribeToLinks(
       onSuccess(items);
     },
     (err) => {
-      console.error('Firestore subscribeToLinks error:', err);
+      console.error(`Firestore subscribeToUserLinks error (users/${userId}/links):`, err);
       if (onError) onError(err);
     }
   );
 }
 
 /**
- * Firestore의 users/anonymous/links 모든 문서를 1회 가져옵니다.
+ * Firestore의 users/{userId}/links 모든 문서를 1회 가져옵니다.
  * createAt 기준 최신순(내림차순)으로 정렬됩니다.
  */
-export async function getLinksFromFirestore(): Promise<LinkItem[]> {
-  const collectionRef = getLinksCollectionRef();
+export async function getLinksFromFirestore(userId: string): Promise<LinkItem[]> {
+  const collectionRef = getUserLinksCollectionRef(userId);
   let snapshot;
 
   try {
-    // 1차 시도: Firestore query orderBy('createAt', 'desc')
     const q = query(collectionRef, orderBy('createAt', 'desc'));
     snapshot = await getDocs(q);
   } catch (queryErr) {
-    // 색인 미생성 또는 필드 부재 대비 fallback
     console.warn('Firestore orderBy query fallback to full fetch:', queryErr);
     snapshot = await getDocs(collectionRef);
   }
@@ -161,7 +158,6 @@ export async function getLinksFromFirestore(): Promise<LinkItem[]> {
     };
   });
 
-  // createAt 기준 최신순(내림차순) 정렬 보장
   items.sort((a, b) => {
     const timeA = getTimestampMillis(a.createAt || a.createdAt);
     const timeB = getTimestampMillis(b.createAt || b.createdAt);
@@ -172,21 +168,22 @@ export async function getLinksFromFirestore(): Promise<LinkItem[]> {
 }
 
 /**
- * Firestore 문서 삭제
+ * Firestore 문서 삭제: users/{userId}/links/{id}
  */
-export async function deleteLinkFromFirestore(id: string): Promise<void> {
-  const docRef = doc(db, 'users', 'anonymous', 'links', id);
+export async function deleteLinkFromFirestore(userId: string, id: string): Promise<void> {
+  const docRef = doc(db, 'users', userId, 'links', id);
   await deleteDoc(docRef);
 }
 
 /**
- * Firestore 문서 업데이트
+ * Firestore 문서 업데이트: users/{userId}/links/{id}
  */
 export async function updateLinkInFirestore(
+  userId: string,
   id: string,
   updates: Partial<Omit<LinkItem, 'id'>>
 ): Promise<void> {
-  const docRef = doc(db, 'users', 'anonymous', 'links', id);
+  const docRef = doc(db, 'users', userId, 'links', id);
   const now = serverTimestamp();
   const cleanUpdates: Record<string, unknown> = {
     updatedAt: now,
@@ -203,47 +200,29 @@ export async function updateLinkInFirestore(
 }
 
 /**
- * 프로필 정보 조회 (users/anonymous/metadata/profile)
+ * 사용자 프로필 정보 조회 (users/{userId}/metadata/profile)
  */
-export async function getProfileFromFirestore(): Promise<Profile | null> {
+export async function getUserProfileFromFirestore(userId: string): Promise<Profile | null> {
   try {
-    const docRef = doc(db, 'users', 'anonymous', 'metadata', 'profile');
+    const docRef = doc(db, 'users', userId, 'metadata', 'profile');
     const snap = await getDoc(docRef);
     if (snap.exists()) {
       return snap.data() as Profile;
     }
   } catch (err) {
-    console.warn('getProfileFromFirestore error:', err);
+    console.warn(`getUserProfileFromFirestore error (users/${userId}/metadata/profile):`, err);
   }
   return null;
 }
 
 /**
- * 프로필 정보 저장 (users/anonymous/metadata/profile)
+ * 사용자 프로필 정보 저장 (users/{userId}/metadata/profile)
  */
-export async function saveProfileToFirestore(profile: Profile): Promise<void> {
+export async function saveUserProfileToFirestore(userId: string, profile: Profile): Promise<void> {
   try {
-    const docRef = doc(db, 'users', 'anonymous', 'metadata', 'profile');
+    const docRef = doc(db, 'users', userId, 'metadata', 'profile');
     await setDoc(docRef, profile, { merge: true });
   } catch (err) {
-    console.warn('saveProfileToFirestore error:', err);
+    console.warn(`saveUserProfileToFirestore error (users/${userId}/metadata/profile):`, err);
   }
-}
-
-/**
- * 만약 Firestore에 기존 링크가 전혀 없다면, 기존 기본 링크를 Firestore에 마이그레이션(초기화)합니다.
- */
-export async function seedInitialLinksIfEmpty(): Promise<boolean> {
-  try {
-    const current = await getLinksFromFirestore();
-    if (current.length === 0) {
-      for (const item of INITIAL_LINKS) {
-        await addLinkToFirestore(item);
-      }
-      return true;
-    }
-  } catch (error) {
-    console.warn('seedInitialLinksIfEmpty failed (likely permissions or offline):', error);
-  }
-  return false;
 }

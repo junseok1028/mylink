@@ -1,6 +1,14 @@
 import { initializeApp, getApps, getApp } from "firebase/app";
 import { getFirestore } from "firebase/firestore";
 import { getAnalytics, isSupported, type Analytics } from "firebase/analytics";
+import {
+  getAuth,
+  GoogleAuthProvider,
+  signInWithPopup,
+  signOut,
+  onAuthStateChanged,
+  type User,
+} from "firebase/auth";
 
 // Your web app's Firebase configuration
 const firebaseConfig = {
@@ -16,6 +24,9 @@ const firebaseConfig = {
 // Initialize Firebase (safely handle SSR & fast reload)
 const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
 const db = getFirestore(app);
+const auth = getAuth(app);
+const googleProvider = new GoogleAuthProvider();
+googleProvider.setCustomParameters({ prompt: "select_account" });
 
 // Initialize Analytics (client-side only)
 let analytics: Analytics | null = null;
@@ -27,5 +38,16 @@ if (typeof window !== "undefined") {
   });
 }
 
-export { app, db, analytics, firebaseConfig };
+export {
+  app,
+  db,
+  auth,
+  googleProvider,
+  signInWithPopup,
+  signOut,
+  onAuthStateChanged,
+  analytics,
+  firebaseConfig,
+};
+export type { User };
 export default app;
