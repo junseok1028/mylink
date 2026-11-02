@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 import { AuthProvider } from "@/lib/auth-context";
 import { Toaster } from "sonner";
+import QueryProvider from "@/app/QueryProvider";
 
 export const metadata: Metadata = {
   title: "마이링크 (MyLink) | 나만의 바이오 프로필",
@@ -10,17 +11,12 @@ export const metadata: Metadata = {
 
 export default function RootLayout({
   children,
-}: Readonly<{
-  children: React.ReactNode;
-}>) {
+}: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html
-      lang="ko"
-      className="h-full antialiased"
-    >
+    <html lang="ko" className="h-full antialiased">
       <body className="min-h-full flex flex-col font-sans">
         <AuthProvider>
-          {children}
+          <QueryProvider>{children}</QueryProvider>
           <Toaster
             position="top-center"
             theme="dark"
@@ -42,3 +38,4 @@ export default function RootLayout({
     </html>
   );
 }
+

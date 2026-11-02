@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useMemo } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Profile, LinkItem } from '@/lib/types';
 import { useAuth, getEmailPrefix } from '@/lib/auth-context';
 import {
@@ -11,7 +12,6 @@ import {
   getUserProfileFromFirestore,
   saveUserProfileToFirestore,
   saveUserProfileWithDisplayName,
-  subscribeToUserLinks,
 } from '@/lib/firestore-links';
 import {
   getStoredUserProfile,
@@ -43,6 +43,23 @@ import {
   ShieldCheck,
   Smartphone,
 } from 'lucide-react';
+
+// React Query hooks for fetching user data
+const useUserProfile = (uid?: string) => {
+  return useQuery({
+    queryKey: ['profile', uid],
+    queryFn: () => getUserProfileFromFirestore(uid!),
+    enabled: !!uid,
+  });
+};
+
+const useUserLinks = (uid?: string) => {
+  return useQuery({
+    queryKey: ['links', uid],
+    queryFn: () => getLinksFromFirestore(uid!),
+    enabled: !!uid,
+  });
+};
 
 function GoogleIcon({ className = 'w-4 h-4' }: { className?: string }) {
   return (
@@ -107,8 +124,31 @@ function YoutubeIcon({ className = 'h-3.5 w-3.5' }: { className?: string }) {
 export default function Page() {
   const { user, loading: authLoading, displayName, signInWithGoogle, logout } = useAuth();
 
-  const [profile, setProfile] = useState<Profile>(DEFAULT_PROFILE);
-  const [links, setLinks] = useState<LinkItem[]>([]);
+  // React Query data
+  const queryClient = useQueryClient();
+  const { data: firestoreProfile, isLoading: profileLoading } = useUserProfile(user?.uid);
+  const { data: firestoreLinks, isLoading: linksLoading } = useUserLinks(user?.uid);
+
+  // 로컬 캐시 fallback 포함한 최종 profile/links
+  const emailPrefix = user ? getEmailPrefix(user) : '';
+  const defaultProfile: Profile = {
+    username: emailPrefix,
+    display_name: emailPrefix,
+    handle: emailPrefix,
+    bio: '나만의 링크와 소개를 작성해보세요 🚀',
+    avatar_url: user?.photoURL || '',
+    socials: { email: user?.email || '' },
+  };
+  const profile: Profile = firestoreProfile
+    ? {
+        ...firestoreProfile,
+        display_name: firestoreProfile.display_name || emailPrefix,
+        avatar_url: firestoreProfile.avatar_url || user?.photoURL || '',
+      }
+    : (getStoredUserProfile(user?.uid || '') ?? defaultProfile);
+  const links: LinkItem[] = firestoreLinks ?? getStoredUserLinks(user?.uid || '') ?? [];
+
+  // UI state
   const [isLoadingLinks, setIsLoadingLinks] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isLoggingIn, setIsLoggingIn] = useState(false);
@@ -141,119 +181,13 @@ export default function Page() {
   const handleLogout = async () => {
     try {
       await logout();
-      setLinks([]);
-      setProfile(DEFAULT_PROFILE);
       toast.success('로그아웃되었습니다.');
     } catch (err) {
       toast.error('로그아웃 중 오류가 발생했습니다.');
     }
   };
 
-  /**
-   * 로그인한 사용자의 Firestore (users/{user.uid}/links)에서 링크 불러오기
-   */
-  const loadLinksFromFirestore = useCallback(
-    async (isInitial = false) => {
-      if (!user) return;
 
-      if (isInitial) {
-        setIsLoadingLinks(true);
-      } else {
-        setIsRefreshing(true);
-      }
-
-      try {
-        const firestoreLinks = await getLinksFromFirestore(user.uid);
-        setLinks(firestoreLinks);
-        saveStoredUserLinks(user.uid, firestoreLinks);
-      } catch (err) {
-        console.error('Firestore getLinks error:', err);
-        toast.error('링크를 불러오는 중 문제가 발생했어요.');
-      } finally {
-        if (isInitial) {
-          setIsLoadingLinks(false);
-        } else {
-          setIsRefreshing(false);
-        }
-      }
-    },
-    [user]
-  );
-
-  /**
-   * 사용자 인증 상태 변경 시 프로필 및 링크 초기화
-   * display name은 이메일 앞부분 사용
-   */
-  useEffect(() => {
-    if (!user) {
-      setProfile(DEFAULT_PROFILE);
-      setLinks([]);
-      return;
-    }
-
-    const emailPrefix = getEmailPrefix(user);
-    const initialUserProfile: Profile = {
-      username: emailPrefix,
-      display_name: emailPrefix,
-      handle: emailPrefix ? `${emailPrefix}` : '',
-      bio: '나만의 링크와 소개를 작성해보세요 🚀',
-      avatar_url: user.photoURL || '',
-      socials: {
-        email: user.email || '',
-      },
-    };
-
-    // 1. 로컬 캐시 확인
-    const cachedProfile = getStoredUserProfile(user.uid);
-    if (cachedProfile) {
-      setProfile({
-        ...cachedProfile,
-        display_name: cachedProfile.display_name || emailPrefix,
-        avatar_url: cachedProfile.avatar_url || user.photoURL || '',
-      });
-    } else {
-      setProfile(initialUserProfile);
-    }
-
-    const cachedLinks = getStoredUserLinks(user.uid);
-    if (cachedLinks && cachedLinks.length > 0) {
-      setLinks(cachedLinks);
-    }
-
-    // 2. Firestore 원격 프로필 조회 및 동기화 (users/{user.uid}/metadata/profile)
-    getUserProfileFromFirestore(user.uid).then((remoteProfile) => {
-      if (remoteProfile) {
-        const merged: Profile = {
-          ...remoteProfile,
-          display_name: remoteProfile.display_name || emailPrefix,
-          avatar_url: remoteProfile.avatar_url || user.photoURL || '',
-        };
-        setProfile(merged);
-        saveStoredUserProfile(user.uid, merged);
-      } else {
-        saveUserProfileToFirestore(user.uid, initialUserProfile);
-      }
-    });
-
-    // 3. Firestore 실시간 링크 구독 (users/{user.uid}/links)
-    setIsLoadingLinks(true);
-    const unsubscribeLinks = subscribeToUserLinks(
-      user.uid,
-      (remoteLinks) => {
-        setLinks(remoteLinks);
-        saveStoredUserLinks(user.uid, remoteLinks);
-        setIsLoadingLinks(false);
-      },
-      (error) => {
-        console.warn('subscribeToUserLinks error:', error);
-        loadLinksFromFirestore(true);
-      }
-    );
-
-    return () => {
-      unsubscribeLinks();
-    };
-  }, [user, loadLinksFromFirestore]);
 
   // Sonner 기반 내 프로필 링크 복사
   const handleCopyProfileLink = () => {
@@ -285,23 +219,23 @@ export default function Page() {
     setIsSavingProfile(true);
     setIsRefreshing(true);
     const oldName = profile.display_name || displayName;
+    // 낙관적 업데이트: 캐시를 즉시 반영
+    queryClient.setQueryData(['profile', user.uid], updatedProfile);
+    queryClient.setQueryData(['links', user.uid], updatedLinks);
+    saveStoredUserProfile(user.uid, updatedProfile);
+    saveStoredUserLinks(user.uid, updatedLinks);
     try {
-      setProfile(updatedProfile);
-      saveStoredUserProfile(user.uid, updatedProfile);
       await saveUserProfileWithDisplayName(user.uid, updatedProfile, oldName);
-
-      setLinks(updatedLinks);
-      saveStoredUserLinks(user.uid, updatedLinks);
-
       // Firestore 링크 노출/숨김 상태 갱신
       for (const link of updatedLinks) {
-        await updateLinkInFirestore(user.uid, link.id, {
-          is_active: link.is_active,
-        });
+        await updateLinkInFirestore(user.uid, link.id, { is_active: link.is_active });
       }
       toast.success('프로필과 링크 설정이 저장되었어요! ✨');
       setIsEditing(false);
     } catch (err) {
+      // 실패 시 롤백
+      queryClient.invalidateQueries({ queryKey: ['profile', user.uid] });
+      queryClient.invalidateQueries({ queryKey: ['links', user.uid] });
       console.warn('Firestore profile save error:', err);
       toast.error('저장 중 일부 오류가 발생했습니다.');
     } finally {
@@ -325,7 +259,7 @@ export default function Page() {
         is_active: true,
         display_order: links.length + 1,
       });
-
+      queryClient.invalidateQueries({ queryKey: ['links', user.uid] });
       toast.success(`'${newItem.title}' 링크가 추가되었어요! ✨`);
     } catch (error) {
       console.error('Firestore link addition error:', error);
@@ -341,6 +275,7 @@ export default function Page() {
     setIsRefreshing(true);
     try {
       await updateLinkInFirestore(user.uid, id, updates);
+      queryClient.invalidateQueries({ queryKey: ['links', user.uid] });
       toast.success(`'${updates.title || '링크'}' 수정이 반영되었어요!`);
     } catch (error) {
       console.error('Firestore link update error:', error);
@@ -358,6 +293,7 @@ export default function Page() {
     setIsRefreshing(true);
     try {
       await deleteLinkFromFirestore(user.uid, id);
+      queryClient.invalidateQueries({ queryKey: ['links', user.uid] });
       toast.success(`'${targetTitle}' 링크가 삭제되었어요.`);
       setDeletingLink(null);
     } catch (error) {
@@ -445,7 +381,9 @@ export default function Page() {
                     setDialogDefaultSection('🚀 주요 프로젝트 & 포트폴리오');
                     setIsAddDialogOpen(true);
                   }}
-                  onRefresh={() => loadLinksFromFirestore(false)}
+                  onRefresh={() => {
+                    queryClient.invalidateQueries({ queryKey: ['links', user.uid] });
+                  }}
                   onLogout={handleLogout}
                   isRefreshing={isRefreshing}
                 />
