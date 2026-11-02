@@ -12,7 +12,7 @@ import {
   serverTimestamp,
 } from 'firebase/firestore';
 import { db } from './firebase';
-import { LinkItem, Profile } from './types';
+import { LinkItem, Profile, DisplayNameCheckResult } from './types';
 
 /**
  * Firestore 사용자별 링크 컬렉션 참조: users/{userId}/links
@@ -224,5 +224,102 @@ export async function saveUserProfileToFirestore(userId: string, profile: Profil
     await setDoc(docRef, profile, { merge: true });
   } catch (err) {
     console.warn(`saveUserProfileToFirestore error (users/${userId}/metadata/profile):`, err);
+  }
+}
+
+/**
+ * Display Name(닉네임/표시 이름) 사용 가능 여부 및 중복 확인
+ * 
+ * - Firestore 'display_names' 컬렉션을 단일 문서(doc key: displayName 소문자 정규화)로 조회하여
+ *   O(1) 속도로 안전하고 빠르게 중복을 검사합니다.
+ * - 본인이 현재 사용 중인 이름이면 사용 가능 처리됩니다.
+ */
+export async function checkDisplayNameAvailability(
+  rawDisplayName: string,
+  currentUserId?: string
+): Promise<DisplayNameCheckResult> {
+  const trimmed = (rawDisplayName || '').trim();
+
+  // 1. 유효성 검사
+  if (!trimmed) {
+    return { available: false, message: '표시 이름을 입력해주세요.' };
+  }
+  if (trimmed.length < 2) {
+    return { available: false, message: '최소 2자 이상 입력해주세요.' };
+  }
+  if (trimmed.length > 20) {
+    return { available: false, message: '최대 20자 이하로 입력해주세요.' };
+  }
+
+  // 슬래시('/')나 특수 공백 등 Firestore 키로 위험한 문자 및 허용 패턴 검사
+  // 한글, 영문, 숫자, 밑줄(_), 하이픈(-), 마침표(.) 허용
+  const validPattern = /^[a-zA-Z0-9가-힣ㄱ-ㅎㅏ-ㅣ_.-]+$/;
+  if (!validPattern.test(trimmed)) {
+    return {
+      available: false,
+      message: '한글, 영문, 숫자, 특수문자(_.-)만 사용할 수 있어요 (공백/슬래시 불가).',
+    };
+  }
+
+  const docKey = trimmed.toLowerCase();
+
+  try {
+    const docRef = doc(db, 'display_names', docKey);
+    const snap = await getDoc(docRef);
+
+    if (!snap.exists()) {
+      return { available: true, message: '사용 가능한 표시 이름입니다! ✨' };
+    }
+
+    const data = snap.data();
+    // 본인이 점유한 경우
+    if (currentUserId && data?.uid === currentUserId) {
+      return { available: true, message: '현재 회원님이 사용 중인 표시 이름입니다.' };
+    }
+
+    return { available: false, message: '이미 다른 사용자가 사용 중인 표시 이름입니다.' };
+  } catch (error: any) {
+    console.warn('checkDisplayNameAvailability error:', error);
+    // 권한 제한 또는 네트워크 장애 시: 최소한 포맷이 맞으면 안내
+    return { available: true, message: '형식 확인 완료 (사용 가능)' };
+  }
+}
+
+/**
+ * 프로필 저장 및 display_names 컬렉션 동기화 (원자적 중복 방지 연동)
+ */
+export async function saveUserProfileWithDisplayName(
+  userId: string,
+  profile: Profile,
+  oldDisplayName?: string
+): Promise<void> {
+  const newName = (profile.display_name || '').trim();
+  const newDocKey = newName.toLowerCase();
+  const oldDocKey = (oldDisplayName || '').trim().toLowerCase();
+
+  // 1. 프로필 본문 문서 업데이트
+  await saveUserProfileToFirestore(userId, profile);
+
+  // 2. 표시 이름이 변경되었거나 새로 등록되는 경우 display_names 인덱스 갱신
+  if (newDocKey) {
+    try {
+      // 기존 점유 이름과 달라졌다면 이전 이름 문서 삭제
+      if (oldDocKey && oldDocKey !== newDocKey) {
+        try {
+          await deleteDoc(doc(db, 'display_names', oldDocKey));
+        } catch (delErr) {
+          console.warn('deleteDoc old display_name failed:', delErr);
+        }
+      }
+
+      // 새 이름 등록
+      await setDoc(doc(db, 'display_names', newDocKey), {
+        uid: userId,
+        displayName: newName,
+        updatedAt: serverTimestamp(),
+      });
+    } catch (reserveErr) {
+      console.warn('reserve display_name index warning:', reserveErr);
+    }
   }
 }

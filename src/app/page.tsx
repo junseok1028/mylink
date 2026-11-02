@@ -10,6 +10,7 @@ import {
   updateLinkInFirestore,
   getUserProfileFromFirestore,
   saveUserProfileToFirestore,
+  saveUserProfileWithDisplayName,
   subscribeToUserLinks,
 } from '@/lib/firestore-links';
 import {
@@ -26,6 +27,7 @@ import { LinkCard } from '@/components/link-card';
 import { LinkIcon } from '@/components/link-icon';
 import { AddLinkDialog } from '@/components/add-link-dialog';
 import { DeleteLinkDialog } from '@/components/delete-link-dialog';
+import { EditProfileDialog } from '@/components/edit-profile-dialog';
 import { ProfileDropdown } from '@/components/profile-dropdown';
 import { toast } from 'sonner';
 import {
@@ -86,6 +88,22 @@ function EmailIcon({ className = 'h-3.5 w-3.5' }: { className?: string }) {
   );
 }
 
+function InstagramIcon({ className = 'h-3.5 w-3.5' }: { className?: string }) {
+  return (
+    <svg className={className} fill="currentColor" viewBox="0 0 24 24">
+      <path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z" />
+    </svg>
+  );
+}
+
+function YoutubeIcon({ className = 'h-3.5 w-3.5' }: { className?: string }) {
+  return (
+    <svg className={className} fill="currentColor" viewBox="0 0 24 24">
+      <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z" />
+    </svg>
+  );
+}
+
 export default function Page() {
   const { user, loading: authLoading, displayName, signInWithGoogle, logout } = useAuth();
 
@@ -104,10 +122,6 @@ export default function Page() {
   const [deletingLink, setDeletingLink] = useState<LinkItem | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isSavingProfile, setIsSavingProfile] = useState(false);
-
-  // Edit form state
-  const [editProfile, setEditProfile] = useState<Profile>(DEFAULT_PROFILE);
-  const [editLinks, setEditLinks] = useState<LinkItem[]>([]);
   const [isEmailModalOpen, setIsEmailModalOpen] = useState(false);
 
   const handleGoogleLogin = async () => {
@@ -152,7 +166,6 @@ export default function Page() {
         const firestoreLinks = await getLinksFromFirestore(user.uid);
         setLinks(firestoreLinks);
         saveStoredUserLinks(user.uid, firestoreLinks);
-        setEditLinks(firestoreLinks);
       } catch (err) {
         console.error('Firestore getLinks error:', err);
         toast.error('링크를 불러오는 중 문제가 발생했어요.');
@@ -229,7 +242,6 @@ export default function Page() {
       (remoteLinks) => {
         setLinks(remoteLinks);
         saveStoredUserLinks(user.uid, remoteLinks);
-        setEditLinks(remoteLinks);
         setIsLoadingLinks(false);
       },
       (error) => {
@@ -265,38 +277,33 @@ export default function Page() {
   };
 
   const handleOpenEdit = () => {
-    setEditProfile({
-      ...profile,
-      socials: { ...profile.socials },
-    });
-    setEditLinks([...links]);
     setIsEditing(true);
   };
 
-  const handleSaveProfile = async () => {
+  const handleSaveProfile = async (updatedProfile: Profile, updatedLinks: LinkItem[]) => {
     if (!user) return;
     setIsSavingProfile(true);
     setIsRefreshing(true);
+    const oldName = profile.display_name || displayName;
     try {
-      setProfile(editProfile);
-      saveStoredUserProfile(user.uid, editProfile);
-      await saveUserProfileToFirestore(user.uid, editProfile);
+      setProfile(updatedProfile);
+      saveStoredUserProfile(user.uid, updatedProfile);
+      await saveUserProfileWithDisplayName(user.uid, updatedProfile, oldName);
 
-      setLinks(editLinks);
-      saveStoredUserLinks(user.uid, editLinks);
+      setLinks(updatedLinks);
+      saveStoredUserLinks(user.uid, updatedLinks);
 
       // Firestore 링크 노출/숨김 상태 갱신
-      for (const link of editLinks) {
+      for (const link of updatedLinks) {
         await updateLinkInFirestore(user.uid, link.id, {
           is_active: link.is_active,
         });
       }
-      toast.success('프로필과 링크 설정이 저장되었어요!');
+      toast.success('프로필과 링크 설정이 저장되었어요! ✨');
       setIsEditing(false);
     } catch (err) {
       console.warn('Firestore profile save error:', err);
       toast.error('저장 중 일부 오류가 발생했습니다.');
-      setIsEditing(false);
     } finally {
       setIsSavingProfile(false);
       setIsRefreshing(false);
@@ -361,10 +368,6 @@ export default function Page() {
       setIsDeleting(false);
       setIsRefreshing(false);
     }
-  };
-
-  const toggleLinkActive = (id: string) => {
-    setEditLinks(editLinks.map((l) => (l.id === id ? { ...l, is_active: !l.is_active } : l)));
   };
 
   // Group active links by section preserving order
@@ -540,37 +543,58 @@ export default function Page() {
             {/* ── Profile Section: Avatar, Name & Handle, Bio, Social Badges ── */}
             <section className="flex flex-col items-center text-center px-5 pt-7 pb-4 space-y-3">
               {/* Avatar (80x80 Round Card) */}
-              <div className="relative">
+              <div
+                onClick={handleOpenEdit}
+                className="relative group cursor-pointer"
+                title="프로필 수정하기"
+              >
                 {profile.avatar_url ? (
                   <img
                     src={profile.avatar_url}
                     alt={profile.display_name}
-                    className="w-20 h-20 rounded-full object-cover ring-4 ring-gray-50 shadow-sm"
+                    className="w-20 h-20 rounded-full object-cover ring-4 ring-gray-50 shadow-sm transition-transform group-hover:scale-105"
                   />
                 ) : (
-                  <div className="w-20 h-20 rounded-full bg-blue-100 text-blue-600 font-bold text-2xl flex items-center justify-center ring-4 ring-gray-50 shadow-sm">
+                  <div className="w-20 h-20 rounded-full bg-blue-100 text-blue-600 font-bold text-2xl flex items-center justify-center ring-4 ring-gray-50 shadow-sm transition-transform group-hover:scale-105">
                     {displayName.slice(0, 1).toUpperCase()}
                   </div>
                 )}
+                <div className="absolute inset-0 rounded-full bg-black/25 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white text-[10px] font-semibold">
+                  수정
+                </div>
               </div>
 
-              {/* Name & Handle (display name: 이메일 앞부분 사용) */}
+              {/* Name & Handle (display name) */}
               <div>
                 <h1 className="text-[20px] font-bold text-[#191F28] leading-tight">
                   {profile.display_name || displayName}
                   {profile.handle && (
                     <span className="text-[15px] font-normal text-[#8B95A1] ml-1.5">
-                      ({profile.handle})
+                      ({profile.handle.startsWith('@') ? profile.handle : `@${profile.handle}`})
                     </span>
                   )}
                 </h1>
                 <p className="text-[14px] text-[#4E5968] mt-1.5 font-medium px-4">
                   &quot;{profile.bio || '나만의 링크를 한곳에서 관리해보세요 🚀'}&quot;
                 </p>
+                <div className="pt-2">
+                  <button
+                    onClick={handleOpenEdit}
+                    className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-gray-100 hover:bg-gray-200/80 active:scale-95 text-xs font-semibold text-[#4E5968] hover:text-[#191F28] transition-all cursor-pointer"
+                  >
+                    <Settings className="w-3.5 h-3.5 text-[#8B95A1]" />
+                    <span>프로필 수정</span>
+                  </button>
+                </div>
               </div>
 
-              {/* Social Badges: GitHub + Email */}
-              {(profile.socials.github || profile.socials.email || user.email) && (
+              {/* Social Badges: GitHub + Instagram + YouTube + Email + Blog */}
+              {(profile.socials.github ||
+                profile.socials.instagram ||
+                profile.socials.youtube ||
+                profile.socials.blog ||
+                profile.socials.email ||
+                user.email) && (
                 <div className="flex flex-wrap items-center justify-center gap-2 pt-1">
                   {profile.socials.github && (
                     <a
@@ -585,6 +609,51 @@ export default function Page() {
                     >
                       <GithubIcon className="w-3.5 h-3.5" />
                       <span>GitHub</span>
+                    </a>
+                  )}
+                  {profile.socials.instagram && (
+                    <a
+                      href={
+                        profile.socials.instagram.startsWith('http')
+                          ? profile.socials.instagram
+                          : `https://${profile.socials.instagram}`
+                      }
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-pink-50 hover:bg-pink-100/80 text-pink-700 active:scale-95 text-xs font-semibold transition-all"
+                    >
+                      <InstagramIcon className="w-3.5 h-3.5" />
+                      <span>Instagram</span>
+                    </a>
+                  )}
+                  {profile.socials.youtube && (
+                    <a
+                      href={
+                        profile.socials.youtube.startsWith('http')
+                          ? profile.socials.youtube
+                          : `https://${profile.socials.youtube}`
+                      }
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-red-50 hover:bg-red-100/80 text-red-700 active:scale-95 text-xs font-semibold transition-all"
+                    >
+                      <YoutubeIcon className="w-3.5 h-3.5" />
+                      <span>YouTube</span>
+                    </a>
+                  )}
+                  {profile.socials.blog && (
+                    <a
+                      href={
+                        profile.socials.blog.startsWith('http')
+                          ? profile.socials.blog
+                          : `https://${profile.socials.blog}`
+                      }
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-emerald-50 hover:bg-emerald-100/80 text-emerald-700 active:scale-95 text-xs font-semibold transition-all"
+                    >
+                      <Link2 className="w-3.5 h-3.5" />
+                      <span>Blog</span>
                     </a>
                   )}
                   {(profile.socials.email || user.email) && (
@@ -748,170 +817,18 @@ export default function Page() {
         </div>
       )}
 
-      {/* ── Edit Modal ── */}
-      {isEditing && (
-        <div className="fixed inset-0 bg-black/40 backdrop-blur-xs flex items-center justify-center z-50 p-4">
-          <Card className="w-full max-w-md max-h-[85vh] overflow-y-auto p-5 space-y-5 rounded-3xl bg-white shadow-2xl">
-            <div className="flex justify-between items-center pb-2 border-b border-gray-100">
-              <h2 className="text-base font-bold text-[#191F28]">프로필 및 설정</h2>
-              <button
-                disabled={isSavingProfile}
-                onClick={() => setIsEditing(false)}
-                className="p-1 rounded-full text-gray-400 hover:text-gray-700 hover:bg-gray-100 disabled:opacity-50 cursor-pointer"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            {/* 1. 프로필 기본 정보 */}
-            <div className="space-y-3">
-              <h3 className="text-xs font-bold text-[#8B95A1] uppercase tracking-wider">
-                프로필 정보
-              </h3>
-              <div>
-                <label className="text-xs font-semibold text-[#4E5968] mb-1 block">이름 (Display Name)</label>
-                <Input
-                  value={editProfile.display_name}
-                  onChange={(e) => setEditProfile({ ...editProfile, display_name: e.target.value })}
-                  placeholder={displayName}
-                />
-              </div>
-              <div>
-                <label className="text-xs font-semibold text-[#4E5968] mb-1 block">핸들 (Handle)</label>
-                <Input
-                  value={editProfile.handle || ''}
-                  onChange={(e) => setEditProfile({ ...editProfile, handle: e.target.value })}
-                  placeholder={displayName}
-                />
-              </div>
-              <div>
-                <label className="text-xs font-semibold text-[#4E5968] mb-1 block">한 줄 소개</label>
-                <Input
-                  value={editProfile.bio}
-                  onChange={(e) => setEditProfile({ ...editProfile, bio: e.target.value })}
-                  placeholder="나만의 소개글을 적어보세요 🚀"
-                />
-              </div>
-            </div>
-
-            <hr className="border-gray-100" />
-
-            {/* 2. 소셜 링크 설정 */}
-            <div className="space-y-3">
-              <h3 className="text-xs font-bold text-[#8B95A1] uppercase tracking-wider">소셜 링크</h3>
-              <div className="flex flex-col space-y-1">
-                <label className="text-xs font-semibold text-[#4E5968] flex items-center gap-1.5">
-                  <GithubIcon className="w-3.5 h-3.5" /> GitHub URL
-                </label>
-                <Input
-                  value={editProfile.socials.github ?? ''}
-                  onChange={(e) =>
-                    setEditProfile((p) => ({
-                      ...p,
-                      socials: { ...p.socials, github: e.target.value },
-                    }))
-                  }
-                  placeholder="https://github.com/username"
-                />
-              </div>
-              <div className="flex flex-col space-y-1">
-                <label className="text-xs font-semibold text-[#4E5968] flex items-center gap-1.5">
-                  <EmailIcon className="w-3.5 h-3.5" /> 이메일 (Email)
-                </label>
-                <Input
-                  value={editProfile.socials.email ?? user?.email ?? ''}
-                  onChange={(e) =>
-                    setEditProfile((p) => ({
-                      ...p,
-                      socials: { ...p.socials, email: e.target.value },
-                    }))
-                  }
-                  placeholder="example@domain.com"
-                />
-              </div>
-            </div>
-
-            <hr className="border-gray-100" />
-
-            {/* 3. 링크 노출/숨김 관리 */}
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <h3 className="text-xs font-bold text-[#8B95A1] uppercase tracking-wider">
-                  링크 노출 관리
-                </h3>
-                <span className="text-[11px] font-semibold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full">
-                  {editLinks.filter((l) => l.is_active).length}/{editLinks.length}개 노출
-                </span>
-              </div>
-
-              {editLinks.length === 0 ? (
-                <p className="text-xs text-[#8B95A1] py-2 text-center">등록된 링크가 없습니다.</p>
-              ) : (
-                <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
-                  {editLinks.map((link) => (
-                    <div
-                      key={link.id}
-                      className="flex items-center justify-between p-2.5 bg-gray-50 hover:bg-gray-100/70 border border-gray-100 rounded-2xl transition-all"
-                    >
-                      <div className="flex items-center gap-2.5 min-w-0 flex-1 pr-2">
-                        <LinkIcon
-                          url={link.url}
-                          title={link.title}
-                          className="w-8 h-8 shrink-0 rounded-lg"
-                          size={16}
-                        />
-                        <div className="min-w-0 flex-1">
-                          <p className="text-xs font-bold text-[#191F28] truncate">{link.title}</p>
-                          <span className="text-[10px] text-[#8B95A1] truncate block mt-0.5">
-                            {link.section || '기타'}
-                          </span>
-                        </div>
-                      </div>
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant={link.is_active ? 'default' : 'outline'}
-                        onClick={() => toggleLinkActive(link.id)}
-                        className={`text-xs h-7 px-3 rounded-xl transition-all cursor-pointer ${
-                          link.is_active
-                            ? 'bg-blue-600 hover:bg-blue-700 text-white shadow-xs'
-                            : 'text-[#8B95A1] bg-white border-gray-200 hover:text-[#4E5968]'
-                        }`}
-                      >
-                        {link.is_active ? '노출' : '숨김'}
-                      </Button>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            <div className="flex justify-end gap-2 pt-2 border-t border-gray-100">
-              <Button
-                variant="outline"
-                disabled={isSavingProfile}
-                onClick={() => setIsEditing(false)}
-                className="rounded-xl cursor-pointer"
-              >
-                취소
-              </Button>
-              <Button
-                onClick={handleSaveProfile}
-                disabled={isSavingProfile}
-                className="bg-blue-600 hover:bg-blue-700 text-white rounded-xl cursor-pointer"
-              >
-                {isSavingProfile ? (
-                  <>
-                    <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
-                    저장 중...
-                  </>
-                ) : (
-                  '저장하기'
-                )}
-              </Button>
-            </div>
-          </Card>
-        </div>
+      {/* ── Edit Profile Dialog ── */}
+      {user && (
+        <EditProfileDialog
+          open={isEditing}
+          onOpenChange={setIsEditing}
+          userId={user.uid}
+          initialProfile={profile}
+          initialLinks={links}
+          fallbackDisplayName={displayName}
+          fallbackAvatarUrl={user.photoURL || ''}
+          onSave={handleSaveProfile}
+        />
       )}
 
       {/* ── Add Link Dialog ── */}

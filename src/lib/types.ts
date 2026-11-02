@@ -16,6 +16,11 @@ export interface Profile {
   socials: SocialLinks;
 }
 
+export interface DisplayNameCheckResult {
+  available: boolean;
+  message: string;
+}
+
 export interface LinkItem {
   id: string;
   title: string;
