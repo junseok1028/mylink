@@ -7,6 +7,25 @@ import QueryProvider from "@/app/QueryProvider";
 export const metadata: Metadata = {
   title: "마이링크 (MyLink) | 나만의 바이오 프로필",
   description: "개인 맞춤형 링크 및 프로필 페이지",
+  openGraph: {
+    title: "마이링크 (MyLink) | 나만의 바이오 프로필",
+    description: "개인 맞춤형 링크 및 프로필 페이지",
+    images: [
+      {
+        url: "/api/og?title=MyLink&type=static",
+        width: 1200,
+        height: 630,
+        alt: "마이링크 (MyLink)",
+      },
+    ],
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "마이링크 (MyLink) | 나만의 바이오 프로필",
+    description: "개인 맞춤형 링크 및 프로필 페이지",
+    images: ["/api/og?title=MyLink&type=static"],
+  },
 };
 
 export default function RootLayout({

@@ -11,7 +11,47 @@ import { Profile } from '@/lib/types';
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
-// 참고: 메타 데이터는 나중에 추가할 예정 (향후 generateMetadata 추가 가능)
+export async function generateMetadata({ params }: PageProps) {
+  const resolvedParams = await params;
+  const rawDisplayName = resolvedParams?.displayName;
+  const decodedDisplayName = rawDisplayName
+    ? decodeURIComponent(rawDisplayName).trim()
+    : 'MyLink';
+
+  // 프로필 조회해서 더 풍부한 메타데이터 제공
+  let displayName = decodedDisplayName;
+  let bio = '';
+  try {
+    const userResult = await findUserByDisplayName(decodedDisplayName);
+    if (userResult?.userId) {
+      const profile = await getUserProfileFromFirestore(userResult.userId);
+      displayName = profile?.display_name || decodedDisplayName;
+      bio = profile?.bio || '';
+    }
+  } catch {
+    // 조회 실패 시 displayName 기본값 사용
+  }
+
+  const title = `${displayName} – MyLink`;
+  const ogUrl = `/api/og?title=${encodeURIComponent(displayName)}&type=dynamic`;
+
+  return {
+    title,
+    description: bio || `${displayName}의 개인 링크 페이지`,
+    openGraph: {
+      title,
+      description: bio || `${displayName}의 개인 링크 페이지`,
+      images: [{ url: ogUrl, width: 1200, height: 630, alt: title }],
+      type: 'profile',
+    },
+    twitter: {
+      card: 'summary_large_image',
+      title,
+      description: bio || `${displayName}의 개인 링크 페이지`,
+      images: [ogUrl],
+    },
+  };
+}
 
 interface PageProps {
   params: Promise<{
