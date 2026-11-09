@@ -1,4 +1,4 @@
-'use client';
+'use client'; // Re-commit landing page improvements
 
 import { useState, useMemo } from 'react';
 import Link from 'next/link';
