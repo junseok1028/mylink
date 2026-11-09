@@ -8,7 +8,7 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { LinkItem } from '@/lib/types';
-import { ChevronRight, Pencil, Trash2, X, Check, AlertCircle, Loader2, Clock } from 'lucide-react';
+import { ChevronRight, Pencil, Trash2, X, Check, AlertCircle, Loader2, Clock, MousePointerClick } from 'lucide-react';
 import { LinkIcon } from '@/components/link-icon';
 
 function formatUpdatedAt(val: any): string | null {
@@ -384,11 +384,20 @@ export function LinkCard({
               {link.description}
             </span>
           )}
-          {updatedTime && (
-            <span className="text-[11px] text-[#8B95A1] flex items-center gap-1 font-normal mt-0.5">
-              <Clock className="w-2.5 h-2.5" /> {updatedTime}
+          <div className="flex items-center gap-2.5 mt-0.5">
+            <span
+              className="text-[11px] text-[#8B95A1] flex items-center gap-1 font-normal"
+              title={`클릭수: ${link.clicks ?? 0}`}
+            >
+              <MousePointerClick className="w-3 h-3 text-[#8B95A1]" />
+              <span>{link.clicks ?? 0}</span>
             </span>
-          )}
+            {updatedTime && (
+              <span className="text-[11px] text-[#8B95A1] flex items-center gap-1 font-normal">
+                <Clock className="w-2.5 h-2.5" /> {updatedTime}
+              </span>
+            )}
+          </div>
         </div>
 
         {/* Chevron arrow (hidden on group hover when action buttons appear) */}

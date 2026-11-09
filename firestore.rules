@@ -29,9 +29,16 @@ service cloud.firestore {
       // (1) 링크 컬렉션 (users/{userId}/links/{linkId})
       match /links/{linkId} {
         // - 읽기: 누구나 링크 목록/상세 조회 가능
-        // - 쓰기(생성/수정/삭제): 본인만 가능
         allow read: if true;
-        allow create, update, delete: if isOwner(userId);
+
+        // - 생성 및 삭제: 소유자(본인)만 가능
+        allow create, delete: if isOwner(userId);
+
+        // - 업데이트:
+        //   1) 소유자(본인)는 전체 필드 수정 가능
+        //   2) clicks 필드만 변경하는 업데이트는 누구나 허용 (비로그인 방문자 포함)
+        allow update: if isOwner(userId) || 
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['clicks']);
       }
 
       // (2) 프로필 서브컬렉션 (users/{userId}/profile/{docId})

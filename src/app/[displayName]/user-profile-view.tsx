@@ -4,13 +4,15 @@ import React from 'react';
 import Link from 'next/link';
 import { Profile, LinkItem } from '@/lib/types';
 import { LinkIcon } from '@/components/link-icon';
-import { Share2, ExternalLink, Link2, ArrowLeft } from 'lucide-react';
+import { Share2, ExternalLink, Link2, ArrowLeft, MousePointerClick } from 'lucide-react';
 import { toast } from 'sonner';
+import { incrementLinkClicks } from '@/lib/firestore-links';
 
 interface UserProfileViewProps {
   profile: Profile;
   links: LinkItem[];
   displayName: string;
+  targetUserId?: string;
 }
 
 function GithubIcon({ className = 'h-3.5 w-3.5' }: { className?: string }) {
@@ -50,7 +52,47 @@ function EmailIcon({ className = 'h-3.5 w-3.5' }: { className?: string }) {
   );
 }
 
-export function UserProfileView({ profile, links, displayName }: UserProfileViewProps) {
+export function UserProfileView({
+  profile,
+  links,
+  displayName,
+  targetUserId,
+}: UserProfileViewProps) {
+  // 클릭수 로컬 상태 관리 (낙관적 UI 반영)
+  const [clickCounts, setClickCounts] = React.useState<Record<string, number>>(() => {
+    const initial: Record<string, number> = {};
+    links.forEach((l) => {
+      initial[l.id] = l.clicks ?? 0;
+    });
+    return initial;
+  });
+
+  React.useEffect(() => {
+    setClickCounts((prev) => {
+      const updated = { ...prev };
+      links.forEach((l) => {
+        if (updated[l.id] === undefined) {
+          updated[l.id] = l.clicks ?? 0;
+        }
+      });
+      return updated;
+    });
+  }, [links]);
+
+  const handleLinkClick = (linkId: string) => {
+    // 공개 프로필(새 페이지)에서는 소유자와 방문자 모두 클릭 시 카운트 증가
+    // (편집 모드 대시보드 / 에서는 증가하지 않음)
+    setClickCounts((prev) => ({
+      ...prev,
+      [linkId]: (prev[linkId] ?? 0) + 1,
+    }));
+
+    // Firestore에 카운트 1 증가 영구 저장
+    if (targetUserId) {
+      incrementLinkClicks(targetUserId, linkId);
+    }
+  };
+
   // 활성화된 링크 필터링
   const activeLinks = React.useMemo(() => links.filter((l) => l.is_active !== false), [links]);
 
@@ -250,6 +292,7 @@ export function UserProfileView({ profile, links, displayName }: UserProfileView
                           href={href}
                           target="_blank"
                           rel="noopener noreferrer"
+                          onClick={() => handleLinkClick(link.id)}
                           className="group flex items-center gap-3.5 p-3.5 sm:p-4 rounded-2xl bg-white border border-gray-100 hover:border-gray-200 shadow-xs hover:shadow-md active:scale-[0.99] transition-all duration-200 text-left block"
                         >
                           {/* 파비콘 / 도메인 아이콘 */}
@@ -270,6 +313,11 @@ export function UserProfileView({ profile, links, displayName }: UserProfileView
                                 {link.description}
                               </span>
                             )}
+                            {/* 미니멀한 클릭 카운트 (아이콘과 숫자만) */}
+                            <div className="flex items-center gap-1 text-[11px] text-[#8B95A1] font-normal mt-0.5">
+                              <MousePointerClick className="w-3 h-3 text-[#8B95A1]" />
+                              <span>{clickCounts[link.id] ?? link.clicks ?? 0}</span>
+                            </div>
                           </div>
 
                           {/* 새 탭 외부 링크 아이콘 */}

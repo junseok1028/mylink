@@ -12,6 +12,8 @@ import {
   limit,
   orderBy,
   serverTimestamp,
+  increment,
+  updateDoc,
 } from 'firebase/firestore';
 import { db } from './firebase';
 import { LinkItem, Profile, DisplayNameCheckResult } from './types';
@@ -51,6 +53,7 @@ export async function addLinkToFirestore(
     section: link.section || '기타',
     is_active: link.is_active ?? true,
     display_order: link.display_order ?? 0,
+    clicks: 0,
     createAt: now,
     createdAt: now,
     created_at: now,
@@ -75,6 +78,7 @@ export async function addLinkToFirestore(
     section: link.section,
     is_active: link.is_active ?? true,
     display_order: link.display_order ?? 0,
+    clicks: 0,
     createAt: Date.now(),
     createdAt: Date.now(),
   };
@@ -96,6 +100,8 @@ export function subscribeToUserLinks(
     (snapshot) => {
       const items: LinkItem[] = snapshot.docs.map((docSnap) => {
         const data = docSnap.data();
+        const createdTime = getTimestampMillis(data.createAt || data.createdAt || data.created_at);
+        const updatedTime = getTimestampMillis(data.updatedAt || data.updated_at);
         return {
           id: docSnap.id,
           title: data.title || '',
@@ -104,10 +110,11 @@ export function subscribeToUserLinks(
           section: data.section || '기타',
           is_active: typeof data.is_active === 'boolean' ? data.is_active : true,
           display_order: typeof data.display_order === 'number' ? data.display_order : 0,
-          createAt: data.createAt || data.createdAt || data.created_at,
-          createdAt: data.createdAt || data.createAt || data.created_at,
-          updatedAt: data.updatedAt || data.updated_at || undefined,
-          updated_at: data.updated_at || data.updatedAt || undefined,
+          clicks: typeof data.clicks === 'number' ? data.clicks : 0,
+          createAt: createdTime || null,
+          createdAt: createdTime || null,
+          updatedAt: updatedTime || null,
+          updated_at: updatedTime || null,
         };
       });
 
@@ -145,6 +152,8 @@ export async function getLinksFromFirestore(userId: string): Promise<LinkItem[]>
 
   const items: LinkItem[] = snapshot.docs.map((docSnap) => {
     const data = docSnap.data();
+    const createdTime = getTimestampMillis(data.createAt || data.createdAt || data.created_at);
+    const updatedTime = getTimestampMillis(data.updatedAt || data.updated_at);
     return {
       id: docSnap.id,
       title: data.title || '',
@@ -153,10 +162,11 @@ export async function getLinksFromFirestore(userId: string): Promise<LinkItem[]>
       section: data.section || '기타',
       is_active: typeof data.is_active === 'boolean' ? data.is_active : true,
       display_order: typeof data.display_order === 'number' ? data.display_order : 0,
-      createAt: data.createAt || data.createdAt || data.created_at,
-      createdAt: data.createdAt || data.createAt || data.created_at,
-      updatedAt: data.updatedAt || data.updated_at || undefined,
-      updated_at: data.updated_at || data.updatedAt || undefined,
+      clicks: typeof data.clicks === 'number' ? data.clicks : 0,
+      createAt: createdTime || null,
+      createdAt: createdTime || null,
+      updatedAt: updatedTime || null,
+      updated_at: updatedTime || null,
     };
   });
 
@@ -175,6 +185,20 @@ export async function getLinksFromFirestore(userId: string): Promise<LinkItem[]>
 export async function deleteLinkFromFirestore(userId: string, id: string): Promise<void> {
   const docRef = doc(db, 'users', userId, 'links', id);
   await deleteDoc(docRef);
+}
+
+/**
+ * Firestore 링크 클릭 수 1 증가: users/{userId}/links/{id}
+ */
+export async function incrementLinkClicks(userId: string, id: string): Promise<void> {
+  try {
+    const docRef = doc(db, 'users', userId, 'links', id);
+    await updateDoc(docRef, {
+      clicks: increment(1),
+    });
+  } catch (err) {
+    console.error(`Failed to increment link clicks (users/${userId}/links/${id}):`, err);
+  }
 }
 
 /**

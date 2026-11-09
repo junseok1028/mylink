@@ -62,6 +62,7 @@ export default async function DynamicUserProfilePage({ params }: PageProps) {
       profile={profile}
       links={links}
       displayName={decodedDisplayName}
+      targetUserId={userId}
     />
   );
 }
