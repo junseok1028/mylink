@@ -43,6 +43,7 @@ import {
   Link2,
   ShieldCheck,
   Smartphone,
+  BarChart3,
 } from 'lucide-react';
 
 // React Query hooks for fetching user data
@@ -339,14 +340,20 @@ export default function Page() {
         
         {/* ── Top Bar / Header ── */}
         <header className="sticky top-0 z-20 bg-white/95 backdrop-blur-md border-b border-gray-100 px-4 sm:px-5 py-3 flex justify-between items-center transition-all">
-          {/* Top Bar 좌측 브랜드 */}
+          {/* Top Bar 좌측 브랜드 (클릭 시 루트 페이지로 이동) */}
           <div className="flex items-center gap-2">
-            <div className="w-6 h-6 rounded-lg bg-blue-600 text-white flex items-center justify-center font-bold text-xs shadow-2xs">
-              M
-            </div>
-            <span className="text-[15px] font-bold text-[#191F28] tracking-tight">
-              MyLink
-            </span>
+            <Link
+              href="/"
+              className="flex items-center gap-2 group cursor-pointer"
+              title="홈으로 이동"
+            >
+              <div className="w-6 h-6 rounded-lg bg-blue-600 text-white flex items-center justify-center font-bold text-xs shadow-2xs group-hover:scale-105 transition-transform">
+                M
+              </div>
+              <span className="text-[15px] font-bold text-[#191F28] tracking-tight group-hover:text-blue-600 transition-colors">
+                MyLink
+              </span>
+            </Link>
             {isRefreshing && (
               <span className="flex items-center gap-1 text-[11px] font-medium text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full animate-pulse ml-1">
                 <Loader2 className="w-2.5 h-2.5 animate-spin" />
@@ -378,17 +385,8 @@ export default function Page() {
                 <span>Google로 로그인</span>
               </button>
             ) : (
-              /* ── 로그인 상태 : 우측 프로필 아바타 + Base UI 드롭다운 메뉴 ── */
+              /* ── 로그인 상태 : 우측 프로필 아바타 + Base UI 드롭다운 메뉴 (내 페이지, 통계는 드롭다운 내부에 위치) ── */
               <div className="flex items-center gap-1.5">
-                {/* 개인별 페이지 바로 이동 버튼 */}
-                <Link
-                  href={`/${encodeURIComponent(profile.display_name || displayName)}`}
-                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-blue-50 hover:bg-blue-100 text-blue-600 text-xs font-semibold transition-all active:scale-95"
-                  title="내 개인별 프로필 페이지 보기"
-                >
-                  <span>내 페이지</span>
-                </Link>
-
                 {/* 빠른 공유 버튼 */}
                 <button
                   onClick={handleShare}
@@ -399,7 +397,7 @@ export default function Page() {
                   <Share2 className="w-4 h-4" />
                 </button>
 
-                {/* 프로필 드롭다운 메뉴 (설정, 내 프로필 링크 복사, 새 링크 추가, 동기화, 로그아웃 등) */}
+                {/* 프로필 드롭다운 메뉴 (내 페이지, 통계 대시보드, 설정, 링크 복사, 새 링크 추가, 동기화, 로그아웃 등) */}
                 <ProfileDropdown
                   user={user}
                   displayName={displayName}

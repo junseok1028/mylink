@@ -30,6 +30,7 @@ export interface LinkItem {
   is_active: boolean;
   display_order: number;
   clicks?: number;
+  clickCount?: number;
   createAt?: any;
   createdAt?: any;
   created_at?: any;

@@ -54,6 +54,7 @@ export async function addLinkToFirestore(
     is_active: link.is_active ?? true,
     display_order: link.display_order ?? 0,
     clicks: 0,
+    clickCount: 0,
     createAt: now,
     createdAt: now,
     created_at: now,
@@ -79,6 +80,7 @@ export async function addLinkToFirestore(
     is_active: link.is_active ?? true,
     display_order: link.display_order ?? 0,
     clicks: 0,
+    clickCount: 0,
     createAt: Date.now(),
     createdAt: Date.now(),
   };
@@ -195,10 +197,60 @@ export async function incrementLinkClicks(userId: string, id: string): Promise<v
     const docRef = doc(db, 'users', userId, 'links', id);
     await updateDoc(docRef, {
       clicks: increment(1),
+      clickCount: increment(1),
     });
   } catch (err) {
     console.error(`Failed to increment link clicks (users/${userId}/links/${id}):`, err);
   }
+}
+
+/**
+ * 통계용: Firestore users/{userId}/links 컬렉션을 clickCount 내림차순으로 조회합니다.
+ * 요구사항: orderBy('clickCount', 'desc') 사용
+ */
+export async function getUserStatsLinks(userId: string): Promise<LinkItem[]> {
+  const collectionRef = getUserLinksCollectionRef(userId);
+  let snapshot;
+
+  try {
+    const q = query(collectionRef, orderBy('clickCount', 'desc'));
+    snapshot = await getDocs(q);
+  } catch (queryErr) {
+    console.warn('Firestore orderBy clickCount query fallback to full fetch:', queryErr);
+    snapshot = await getDocs(collectionRef);
+  }
+
+  const items: LinkItem[] = snapshot.docs.map((docSnap) => {
+    const data = docSnap.data();
+    const createdTime = getTimestampMillis(data.createAt || data.createdAt || data.created_at);
+    const updatedTime = getTimestampMillis(data.updatedAt || data.updated_at);
+    const count =
+      typeof data.clickCount === 'number'
+        ? data.clickCount
+        : typeof data.clicks === 'number'
+        ? data.clicks
+        : 0;
+    return {
+      id: docSnap.id,
+      title: data.title || '',
+      url: data.url || '',
+      description: data.description || undefined,
+      section: data.section || '기타',
+      is_active: typeof data.is_active === 'boolean' ? data.is_active : true,
+      display_order: typeof data.display_order === 'number' ? data.display_order : 0,
+      clicks: count,
+      clickCount: count,
+      createAt: createdTime || null,
+      createdAt: createdTime || null,
+      updatedAt: updatedTime || null,
+      updated_at: updatedTime || null,
+    };
+  });
+
+  // 클라이언트 단에서도 clickCount 내림차순 정렬 보장
+  items.sort((a, b) => (b.clickCount ?? 0) - (a.clickCount ?? 0));
+
+  return items;
 }
 
 /**

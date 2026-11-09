@@ -13,6 +13,7 @@ import {
   LogOut,
   Check,
   ChevronDown,
+  BarChart3,
 } from 'lucide-react';
 import { type User } from '@/lib/firebase';
 import { cn } from '@/lib/utils';
@@ -58,6 +59,10 @@ export function ProfileDropdown({
 
   const handleNavigateToProfile = () => {
     router.push(profilePath);
+  };
+
+  const handleNavigateToStats = () => {
+    router.push('/stats');
   };
 
   const handleOpenProfileInNewTab = () => {
@@ -132,6 +137,15 @@ export function ProfileDropdown({
                 <Link2 className="w-4 h-4 text-[#8B95A1]" />
               )}
               <span>{copied ? '링크 복사 완료!' : '내 프로필 링크 복사'}</span>
+            </Menu.Item>
+
+            {/* 4. 링크 통계 대시보드 */}
+            <Menu.Item
+              onClick={handleNavigateToStats}
+              className="flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-semibold text-violet-600 bg-violet-50/70 hover:bg-violet-100/70 cursor-pointer outline-none transition-colors"
+            >
+              <BarChart3 className="w-4 h-4 text-violet-600" />
+              <span>통계 대시보드</span>
             </Menu.Item>
 
             <div className="h-px bg-gray-100 my-1" />

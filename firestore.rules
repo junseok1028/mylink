@@ -36,9 +36,11 @@ service cloud.firestore {
 
         // - 업데이트:
         //   1) 소유자(본인)는 전체 필드 수정 가능
-        //   2) clicks 필드만 변경하는 업데이트는 누구나 허용 (비로그인 방문자 포함)
+        //   2) clicks 또는 clickCount 필드만 변경하는 업데이트는 누구나 허용 (비로그인 방문자 포함)
         allow update: if isOwner(userId) || 
-          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['clicks']);
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['clicks']) ||
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['clickCount']) ||
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['clicks', 'clickCount']);
       }
 
       // (2) 프로필 서브컬렉션 (users/{userId}/profile/{docId})
