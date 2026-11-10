@@ -7,6 +7,11 @@ import { LinkIcon } from '@/components/link-icon';
 import { Share2, ExternalLink, Link2, ArrowLeft, MousePointerClick } from 'lucide-react';
 import { toast } from 'sonner';
 import { incrementLinkClicks } from '@/lib/firestore-links';
+import {
+  SocialIcon,
+  getPlatformMeta,
+  normalizeSocialLinks,
+} from '@/components/social-icons';
 
 interface UserProfileViewProps {
   profile: Profile;
@@ -185,85 +190,34 @@ export function UserProfileView({
             </p>
           </div>
 
-          {/* 소셜 링크 배지 (선택 사항) */}
-          {profile.socials &&
-            (profile.socials.github ||
-              profile.socials.instagram ||
-              profile.socials.youtube ||
-              profile.socials.blog ||
-              profile.socials.email) && (
+          {/* 소셜 링크 배지 (동적 렌더링) */}
+          {(() => {
+            const activeSocials = normalizeSocialLinks(profile.socials, profile.social_links);
+            if (activeSocials.length === 0) return null;
+
+            return (
               <div className="flex flex-wrap items-center justify-center gap-2 pt-2">
-                {profile.socials.github && (
-                  <a
-                    href={
-                      profile.socials.github.startsWith('http')
-                        ? profile.socials.github
-                        : `https://${profile.socials.github}`
-                    }
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-gray-100 hover:bg-gray-200/80 active:scale-95 text-xs font-semibold text-[#333D4B] transition-all"
-                  >
-                    <GithubIcon className="w-3.5 h-3.5" />
-                    <span>GitHub</span>
-                  </a>
-                )}
-                {profile.socials.instagram && (
-                  <a
-                    href={
-                      profile.socials.instagram.startsWith('http')
-                        ? profile.socials.instagram
-                        : `https://${profile.socials.instagram}`
-                    }
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-pink-50 hover:bg-pink-100/80 text-pink-700 active:scale-95 text-xs font-semibold transition-all"
-                  >
-                    <InstagramIcon className="w-3.5 h-3.5" />
-                    <span>Instagram</span>
-                  </a>
-                )}
-                {profile.socials.youtube && (
-                  <a
-                    href={
-                      profile.socials.youtube.startsWith('http')
-                        ? profile.socials.youtube
-                        : `https://${profile.socials.youtube}`
-                    }
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-red-50 hover:bg-red-100/80 text-red-700 active:scale-95 text-xs font-semibold transition-all"
-                  >
-                    <YoutubeIcon className="w-3.5 h-3.5" />
-                    <span>YouTube</span>
-                  </a>
-                )}
-                {profile.socials.blog && (
-                  <a
-                    href={
-                      profile.socials.blog.startsWith('http')
-                        ? profile.socials.blog
-                        : `https://${profile.socials.blog}`
-                    }
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-emerald-50 hover:bg-emerald-100/80 text-emerald-700 active:scale-95 text-xs font-semibold transition-all"
-                  >
-                    <Link2 className="w-3.5 h-3.5" />
-                    <span>Blog</span>
-                  </a>
-                )}
-                {profile.socials.email && (
-                  <a
-                    href={`mailto:${profile.socials.email}`}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-gray-100 hover:bg-gray-200/80 active:scale-95 text-xs font-semibold text-[#333D4B] transition-all"
-                  >
-                    <EmailIcon className="w-3.5 h-3.5" />
-                    <span>Email</span>
-                  </a>
-                )}
+                {activeSocials.map((item) => {
+                  const meta = getPlatformMeta(item.platform);
+                  const isEmail = item.platform === 'email';
+
+                  return (
+                    <a
+                      key={item.id}
+                      href={isEmail ? `mailto:${item.url.replace(/^mailto:/, '')}` : item.url}
+                      target={isEmail ? undefined : '_blank'}
+                      rel={isEmail ? undefined : 'noopener noreferrer'}
+                      className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full active:scale-95 text-xs font-semibold transition-all border shadow-2xs ${meta.badgeBg} ${meta.badgeText} ${meta.badgeBorder || 'border-transparent'}`}
+                      title={item.label}
+                    >
+                      <SocialIcon platform={item.platform} className="w-3.5 h-3.5" />
+                      <span>{item.label}</span>
+                    </a>
+                  );
+                })}
               </div>
-            )}
+            );
+          })()}
         </section>
 
         {/* ── 하단 : 링크 목록 (클릭 시 새 탭) ── */}

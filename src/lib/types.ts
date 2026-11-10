@@ -7,6 +7,13 @@ export interface SocialLinks {
   [key: string]: string | undefined;
 }
 
+export interface SocialLinkItem {
+  id: string;
+  platform: string; // 'instagram' | 'youtube' | 'github' | 'email' | 'blog' | 'x' | 'threads' | 'tiktok' | 'linkedin' | 'custom' 등
+  label: string; // 표시 이름
+  url: string; // 링크 URL 또는 이메일 주소
+}
+
 export interface Profile {
   username: string;
   display_name: string;
@@ -14,6 +21,7 @@ export interface Profile {
   bio: string;
   avatar_url: string;
   socials: SocialLinks;
+  social_links?: SocialLinkItem[];
 }
 
 export interface DisplayNameCheckResult {

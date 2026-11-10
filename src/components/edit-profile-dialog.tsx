@@ -13,8 +13,16 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { LinkIcon } from '@/components/link-icon';
-import { Profile, LinkItem } from '@/lib/types';
+import { Profile, LinkItem, SocialLinkItem } from '@/lib/types';
 import { checkDisplayNameAvailability } from '@/lib/firestore-links';
+import {
+  SOCIAL_PLATFORMS,
+  SocialIcon,
+  getPlatformMeta,
+  normalizeSocialLinks,
+  itemsToSocialsObject,
+  formatSocialUrl,
+} from '@/components/social-icons';
 import { toast } from 'sonner';
 import {
   User as UserIcon,
@@ -27,46 +35,15 @@ import {
   Sparkles,
   Link2,
   AtSign,
-  Share2,
+  Plus,
+  Pencil,
+  Trash2,
+  Upload,
+  Check,
+  X,
+  ExternalLink,
+  ChevronDown,
 } from 'lucide-react';
-
-// 소셜 채널 아이콘 렌더링 헬퍼
-function GithubIcon({ className = 'w-4 h-4' }: { className?: string }) {
-  return (
-    <svg className={className} fill="currentColor" viewBox="0 0 24 24">
-      <path
-        fillRule="evenodd"
-        clipRule="evenodd"
-        d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.53 1.032 1.53 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z"
-      />
-    </svg>
-  );
-}
-
-function InstagramIcon({ className = 'w-4 h-4' }: { className?: string }) {
-  return (
-    <svg className={className} fill="currentColor" viewBox="0 0 24 24">
-      <path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z" />
-    </svg>
-  );
-}
-
-function YoutubeIcon({ className = 'w-4 h-4' }: { className?: string }) {
-  return (
-    <svg className={className} fill="currentColor" viewBox="0 0 24 24">
-      <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z" />
-    </svg>
-  );
-}
-
-function EmailIcon({ className = 'w-4 h-4' }: { className?: string }) {
-  return (
-    <svg className={className} fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-      <rect width="20" height="16" x="2" y="4" rx="2" />
-      <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" />
-    </svg>
-  );
-}
 
 interface EditProfileDialogProps {
   open: boolean;
@@ -81,6 +58,72 @@ interface EditProfileDialogProps {
 
 type CheckStatus = 'idle' | 'checking' | 'available' | 'duplicate' | 'invalid';
 
+/**
+ * 컴퓨터 폴더에서 선택한 이미지 파일을 최대 400px 크기로 리사이징 및 압축하는 헬퍼
+ */
+function processImageFile(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    if (!file.type.startsWith('image/')) {
+      reject(new Error('이미지 파일(PNG, JPG, WebP 등)만 업로드할 수 있습니다.'));
+      return;
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      reject(new Error('10MB 이하의 이미지만 업로드 가능합니다.'));
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        const maxSize = 400;
+        let width = img.width;
+        let height = img.height;
+
+        if (width > height) {
+          if (width > maxSize) {
+            height = Math.round((height * maxSize) / width);
+            width = maxSize;
+          }
+        } else {
+          if (height > maxSize) {
+            width = Math.round((width * maxSize) / height);
+            height = maxSize;
+          }
+        }
+
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          resolve(e.target?.result as string);
+          return;
+        }
+
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = 'high';
+        ctx.drawImage(img, 0, 0, width, height);
+
+        try {
+          const dataUrl = canvas.toDataURL('image/webp', 0.88);
+          if (dataUrl.startsWith('data:image/webp')) {
+            resolve(dataUrl);
+            return;
+          }
+        } catch {
+          // fallback to jpeg
+        }
+        resolve(canvas.toDataURL('image/jpeg', 0.88));
+      };
+      img.onerror = () => reject(new Error('이미지를 읽는 중 오류가 발생했습니다.'));
+      img.src = e.target?.result as string;
+    };
+    reader.onerror = () => reject(new Error('파일을 읽는 중 오류가 발생했습니다.'));
+    reader.readAsDataURL(file);
+  });
+}
+
 export function EditProfileDialog({
   open,
   onOpenChange,
@@ -94,20 +137,33 @@ export function EditProfileDialog({
   const [activeTab, setActiveTab] = React.useState<'profile' | 'socials' | 'links'>('profile');
   const [isSaving, setIsSaving] = React.useState(false);
 
-  // 폼 내부 상태
+  // 1. 기본 프로필 상태
   const [displayName, setDisplayName] = React.useState(initialProfile.display_name || fallbackDisplayName);
   const [handle, setHandle] = React.useState(initialProfile.handle || '');
   const [bio, setBio] = React.useState(initialProfile.bio || '');
   const [avatarUrl, setAvatarUrl] = React.useState(initialProfile.avatar_url || fallbackAvatarUrl);
+  const [isUploadingPhoto, setIsUploadingPhoto] = React.useState(false);
+  const [showUrlInput, setShowUrlInput] = React.useState(false);
 
-  const [socials, setSocials] = React.useState({
-    github: initialProfile.socials?.github || '',
-    instagram: initialProfile.socials?.instagram || '',
-    youtube: initialProfile.socials?.youtube || '',
-    email: initialProfile.socials?.email || '',
-    blog: initialProfile.socials?.blog || '',
-  });
+  // 파일 인풋 ref
+  const fileInputRef = React.useRef<HTMLInputElement | null>(null);
 
+  // 2. 동적 소셜 링크 상태
+  const [socialLinks, setSocialLinks] = React.useState<SocialLinkItem[]>([]);
+
+  // 소셜 링크 신규 추가 폼 상태
+  const [newPlatform, setNewPlatform] = React.useState<string>('instagram');
+  const [newLabel, setNewLabel] = React.useState<string>('Instagram');
+  const [newUrl, setNewUrl] = React.useState<string>('');
+  const [isAddingSocial, setIsAddingSocial] = React.useState<boolean>(false);
+
+  // 소셜 링크 인라인 수정 상태
+  const [editingId, setEditingId] = React.useState<string | null>(null);
+  const [editPlatform, setEditPlatform] = React.useState<string>('instagram');
+  const [editLabel, setEditLabel] = React.useState<string>('');
+  const [editUrl, setEditUrl] = React.useState<string>('');
+
+  // 3. 링크 노출 관리 상태
   const [links, setLinks] = React.useState<LinkItem[]>(initialLinks);
 
   // 중복 확인 상태
@@ -122,16 +178,21 @@ export function EditProfileDialog({
       setHandle(initialProfile.handle || '');
       setBio(initialProfile.bio || '');
       setAvatarUrl(initialProfile.avatar_url || fallbackAvatarUrl);
-      setSocials({
-        github: initialProfile.socials?.github || '',
-        instagram: initialProfile.socials?.instagram || '',
-        youtube: initialProfile.socials?.youtube || '',
-        email: initialProfile.socials?.email || '',
-        blog: initialProfile.socials?.blog || '',
-      });
-      setLinks(initialLinks);
 
-      // 이미 저장되어 있던 자신의 이름은 기본적으로 'available'
+      // 소셜 링크 초기화: 처음엔 이메일만 있거나 기존 데이터 정규화
+      const defaultEmail = initialProfile.socials?.email || '';
+      const initialSocials = normalizeSocialLinks(
+        initialProfile.socials,
+        initialProfile.social_links,
+        defaultEmail
+      );
+      setSocialLinks(initialSocials);
+
+      setLinks(initialLinks);
+      setIsAddingSocial(false);
+      setEditingId(null);
+      setNewUrl('');
+
       if (curName.trim()) {
         setCheckStatus('available');
         setCheckMessage('현재 사용 중인 표시 이름입니다.');
@@ -142,6 +203,41 @@ export function EditProfileDialog({
       setActiveTab('profile');
     }
   }, [open, initialProfile, initialLinks, fallbackDisplayName, fallbackAvatarUrl]);
+
+  // 사진 파일 선택 핸들러 (컴퓨터 폴더에서 사진 받기)
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsUploadingPhoto(true);
+    try {
+      const dataUrl = await processImageFile(file);
+      setAvatarUrl(dataUrl);
+      toast.success('프로필 사진이 적용되었습니다! 📸');
+    } catch (err: any) {
+      console.error('Photo upload error:', err);
+      toast.error(err.message || '사진을 불러오는 중 오류가 발생했습니다.');
+    } finally {
+      setIsUploadingPhoto(false);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    }
+  };
+
+  // 프로필 사진 삭제
+  const handleRemovePhoto = () => {
+    setAvatarUrl('');
+    toast.info('프로필 사진이 삭제되었습니다 (기본 아바타로 표시)');
+  };
+
+  // Google 기본 사진으로 복원
+  const handleRestoreFallbackPhoto = () => {
+    if (fallbackAvatarUrl) {
+      setAvatarUrl(fallbackAvatarUrl);
+      toast.info('Google 계정 사진으로 복원되었습니다.');
+    }
+  };
 
   // Display Name 변경 감지
   const handleDisplayNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -190,8 +286,77 @@ export function EditProfileDialog({
     }
   };
 
-  const handleManualCheck = () => {
-    performCheck(displayName);
+  // 소셜 플랫폼 선택 변경 시 라벨 자동 지정
+  const handleNewPlatformSelect = (pId: string) => {
+    setNewPlatform(pId);
+    const meta = getPlatformMeta(pId);
+    setNewLabel(meta.defaultLabel);
+  };
+
+  // 소셜 링크 추가
+  const handleAddSocial = () => {
+    const trimmedUrl = newUrl.trim();
+    if (!trimmedUrl) {
+      toast.error('링크 주소 또는 이메일을 입력해주세요.');
+      return;
+    }
+
+    const meta = getPlatformMeta(newPlatform);
+    const formattedUrl = formatSocialUrl(newPlatform, trimmedUrl);
+
+    const newItem: SocialLinkItem = {
+      id: `sl_${newPlatform}_${Date.now()}`,
+      platform: newPlatform,
+      label: newLabel.trim() || meta.defaultLabel,
+      url: formattedUrl,
+    };
+
+    setSocialLinks((prev) => [...prev, newItem]);
+    setNewUrl('');
+    setIsAddingSocial(false);
+    toast.success(`'${newItem.label}' 소셜 링크가 추가되었습니다! ✨`);
+  };
+
+  // 소셜 링크 인라인 수정 시작
+  const handleStartEditSocial = (item: SocialLinkItem) => {
+    setEditingId(item.id);
+    setEditPlatform(item.platform);
+    setEditLabel(item.label);
+    setEditUrl(item.url);
+  };
+
+  // 소셜 링크 인라인 수정 완료
+  const handleSaveEditSocial = (id: string) => {
+    const trimmedUrl = editUrl.trim();
+    if (!trimmedUrl) {
+      toast.error('링크 주소 또는 이메일을 입력해주세요.');
+      return;
+    }
+
+    const meta = getPlatformMeta(editPlatform);
+    const formattedUrl = formatSocialUrl(editPlatform, trimmedUrl);
+
+    setSocialLinks((prev) =>
+      prev.map((item) =>
+        item.id === id
+          ? {
+              ...item,
+              platform: editPlatform,
+              label: editLabel.trim() || meta.defaultLabel,
+              url: formattedUrl,
+            }
+          : item
+      )
+    );
+
+    setEditingId(null);
+    toast.success('소셜 링크가 수정되었습니다.');
+  };
+
+  // 소셜 링크 삭제
+  const handleDeleteSocial = (id: string, label: string) => {
+    setSocialLinks((prev) => prev.filter((item) => item.id !== id));
+    toast.success(`'${label}' 소셜 링크가 삭제되었습니다.`);
   };
 
   // 링크 노출 토글
@@ -213,7 +378,6 @@ export function EditProfileDialog({
       return;
     }
 
-    // 중복 확인이 아직 완료되지 않은 상태라면 저장 전 즉시 중복 확인 실행
     if (checkStatus !== 'available') {
       const isOk = await performCheck(trimmedName);
       if (!isOk) {
@@ -225,6 +389,8 @@ export function EditProfileDialog({
 
     setIsSaving(true);
     try {
+      const updatedSocials = itemsToSocialsObject(socialLinks);
+
       const updatedProfile: Profile = {
         ...initialProfile,
         username: trimmedName,
@@ -232,13 +398,8 @@ export function EditProfileDialog({
         handle: handle.trim(),
         bio: bio.trim(),
         avatar_url: avatarUrl.trim(),
-        socials: {
-          github: socials.github.trim() || undefined,
-          instagram: socials.instagram.trim() || undefined,
-          youtube: socials.youtube.trim() || undefined,
-          email: socials.email.trim() || undefined,
-          blog: socials.blog.trim() || undefined,
-        },
+        socials: updatedSocials,
+        social_links: socialLinks,
       };
 
       await onSave(updatedProfile, links);
@@ -253,16 +414,16 @@ export function EditProfileDialog({
 
   return (
     <Dialog open={open} onOpenChange={(isOpen) => !isSaving && onOpenChange(isOpen)}>
-      <DialogContent className="max-w-lg p-0 overflow-hidden flex flex-col max-h-[90vh]">
+      <DialogContent className="max-w-lg p-0 overflow-hidden flex flex-col max-h-[92vh]">
         {/* 모달 상단 헤더 */}
-        <div className="p-6 pb-4 border-b border-gray-100 flex items-center justify-between">
+        <div className="p-6 pb-4 border-b border-gray-100 flex items-center justify-between bg-white">
           <DialogHeader className="mb-0">
             <DialogTitle className="flex items-center gap-2 text-lg font-bold text-[#191F28]">
               <UserIcon className="w-5 h-5 text-blue-600" />
               마이페이지 프로필 수정
             </DialogTitle>
             <DialogDescription className="text-xs text-[#8B95A1] mt-0.5">
-              표시 이름(중복 확인), 소개글, 아바타 및 소셜 채널을 관리하세요.
+              컴퓨터 사진 등록, 맞춤형 소셜 채널 및 링크 노출을 관리하세요.
             </DialogDescription>
           </DialogHeader>
           <DialogClose
@@ -286,13 +447,16 @@ export function EditProfileDialog({
           <button
             type="button"
             onClick={() => setActiveTab('socials')}
-            className={`py-3 px-3 border-b-2 transition-all cursor-pointer ${
+            className={`py-3 px-3 border-b-2 transition-all flex items-center gap-1.5 cursor-pointer ${
               activeTab === 'socials'
                 ? 'border-blue-600 text-blue-600 font-bold'
                 : 'border-transparent hover:text-[#191F28]'
             }`}
           >
             소셜 링크
+            <span className="text-[10px] bg-blue-100 text-blue-700 font-bold px-1.5 py-0.2 rounded-full">
+              {socialLinks.length}
+            </span>
           </button>
           <button
             type="button"
@@ -304,7 +468,7 @@ export function EditProfileDialog({
             }`}
           >
             링크 노출 관리
-            <span className="text-[10px] bg-blue-100 text-blue-700 font-bold px-1.5 py-0.2 rounded-full">
+            <span className="text-[10px] bg-gray-200 text-gray-700 font-bold px-1.5 py-0.2 rounded-full">
               {links.filter((l) => l.is_active).length}
             </span>
           </button>
@@ -315,43 +479,117 @@ export function EditProfileDialog({
           {/* 1. 기본 프로필 탭 */}
           {activeTab === 'profile' && (
             <div className="space-y-5 animate-in fade-in-50 duration-150">
-              {/* 아바타 영역 */}
-              <div className="flex items-center gap-4 p-4 rounded-2xl bg-gray-50/80 border border-gray-100">
-                <div className="relative">
-                  {avatarUrl ? (
-                    <img
-                      src={avatarUrl}
-                      alt="프로필 미리보기"
-                      className="w-16 h-16 rounded-full object-cover ring-2 ring-white shadow-xs"
-                      onError={() => setAvatarUrl('')}
-                    />
-                  ) : (
-                    <div className="w-16 h-16 rounded-full bg-blue-100 text-blue-600 font-bold text-xl flex items-center justify-center ring-2 ring-white shadow-xs">
-                      {(displayName || 'U').slice(0, 1).toUpperCase()}
+              {/* 아바타 영역 (컴퓨터 사진 업로드) */}
+              <div className="p-4 rounded-2xl bg-gray-50/90 border border-gray-100 space-y-3">
+                <div className="flex items-center gap-4">
+                  {/* 사진 미리보기 및 클릭 시 업로드 */}
+                  <div
+                    onClick={() => fileInputRef.current?.click()}
+                    className="relative group cursor-pointer shrink-0"
+                    title="클릭하여 컴퓨터에서 사진 선택"
+                  >
+                    {avatarUrl ? (
+                      <img
+                        src={avatarUrl}
+                        alt="프로필 미리보기"
+                        className="w-18 h-18 rounded-full object-cover ring-2 ring-white shadow-sm transition-transform group-hover:scale-105"
+                      />
+                    ) : (
+                      <div className="w-18 h-18 rounded-full bg-blue-100 text-blue-600 font-bold text-2xl flex items-center justify-center ring-2 ring-white shadow-sm transition-transform group-hover:scale-105">
+                        {(displayName || 'U').slice(0, 1).toUpperCase()}
+                      </div>
+                    )}
+                    <span className="absolute bottom-0 right-0 p-1.5 bg-blue-600 text-white rounded-full shadow-xs border-2 border-white group-hover:bg-blue-700 transition-colors">
+                      {isUploadingPhoto ? (
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      ) : (
+                        <Camera className="w-3.5 h-3.5" />
+                      )}
+                    </span>
+                  </div>
+
+                  {/* 파일 업로드 컨트롤 */}
+                  <div className="flex-1 space-y-1.5 min-w-0">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-[#191F28]">프로필 사진</span>
+                      <span className="text-[11px] text-[#8B95A1]">JPG, PNG, WebP</span>
                     </div>
-                  )}
-                  <span className="absolute bottom-0 right-0 p-1 bg-white rounded-full shadow-2xs border border-gray-200 text-[#4E5968]">
-                    <Camera className="w-3.5 h-3.5" />
-                  </span>
+
+                    {/* 컴퓨터에서 사진 선택 버튼 */}
+                    <div className="flex flex-wrap items-center gap-2 pt-0.5">
+                      <Button
+                        type="button"
+                        size="sm"
+                        onClick={() => fileInputRef.current?.click()}
+                        disabled={isUploadingPhoto}
+                        className="h-8 px-3 rounded-xl bg-white hover:bg-gray-100 text-[#191F28] border border-gray-200 text-xs font-semibold shadow-2xs cursor-pointer flex items-center gap-1.5"
+                      >
+                        {isUploadingPhoto ? (
+                          <Loader2 className="w-3.5 h-3.5 animate-spin text-blue-600" />
+                        ) : (
+                          <Upload className="w-3.5 h-3.5 text-blue-600" />
+                        )}
+                        <span>컴퓨터에서 사진 선택</span>
+                      </Button>
+
+                      {avatarUrl && (
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="ghost"
+                          onClick={handleRemovePhoto}
+                          className="h-8 px-2.5 rounded-xl text-xs text-red-600 hover:text-red-700 hover:bg-red-50 cursor-pointer"
+                        >
+                          사진 삭제
+                        </Button>
+                      )}
+                    </div>
+
+                    {/* 숨겨진 파일 인풋 */}
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept="image/png,image/jpeg,image/webp,image/gif"
+                      className="hidden"
+                      onChange={handleFileChange}
+                    />
+
+                    {fallbackAvatarUrl && avatarUrl !== fallbackAvatarUrl && (
+                      <button
+                        type="button"
+                        onClick={handleRestoreFallbackPhoto}
+                        className="inline-flex items-center gap-1 text-[11px] text-blue-600 hover:underline cursor-pointer pt-0.5"
+                      >
+                        <RotateCcw className="w-3 h-3" />
+                        Google 계정 사진으로 복원
+                      </button>
+                    )}
+                  </div>
                 </div>
 
-                <div className="flex-1 space-y-1.5">
-                  <label className="text-xs font-semibold text-[#4E5968] block">아바타 이미지 URL</label>
-                  <Input
-                    value={avatarUrl}
-                    onChange={(e) => setAvatarUrl(e.target.value)}
-                    placeholder="https://example.com/avatar.jpg"
-                    className="text-xs h-8 rounded-xl bg-white"
-                  />
-                  {fallbackAvatarUrl && avatarUrl !== fallbackAvatarUrl && (
-                    <button
-                      type="button"
-                      onClick={() => setAvatarUrl(fallbackAvatarUrl)}
-                      className="inline-flex items-center gap-1 text-[11px] text-blue-600 hover:underline cursor-pointer"
-                    >
-                      <RotateCcw className="w-3 h-3" />
-                      Google 계정 기본 사진으로 복원
-                    </button>
+                {/* URL 직접 입력 보조 옵션 토글 */}
+                <div className="pt-1 border-t border-gray-200/70">
+                  <button
+                    type="button"
+                    onClick={() => setShowUrlInput(!showUrlInput)}
+                    className="text-[11px] text-[#8B95A1] hover:text-[#4E5968] flex items-center gap-1 cursor-pointer"
+                  >
+                    <Link2 className="w-3 h-3" />
+                    <span>웹 이미지 URL로 직접 입력하기</span>
+                    <ChevronDown
+                      className={`w-3 h-3 transition-transform ${showUrlInput ? 'rotate-180' : ''}`}
+                    />
+                  </button>
+
+                  {showUrlInput && (
+                    <div className="mt-2 space-y-1 animate-in fade-in-50">
+                      <Input
+                        value={avatarUrl}
+                        onChange={(e) => setAvatarUrl(e.target.value)}
+                        placeholder="https://example.com/photo.jpg"
+                        className="text-xs h-8 rounded-xl bg-white"
+                      />
+                    </div>
                   )}
                 </div>
               </div>
@@ -393,7 +631,7 @@ export function EditProfileDialog({
 
                   <Button
                     type="button"
-                    onClick={handleManualCheck}
+                    onClick={() => performCheck(displayName)}
                     disabled={checkStatus === 'checking' || !displayName.trim()}
                     variant="outline"
                     className="h-10 px-3.5 rounded-xl text-xs font-semibold border-gray-200 hover:bg-blue-50 hover:text-blue-600 hover:border-blue-300 shrink-0 cursor-pointer disabled:opacity-50"
@@ -408,7 +646,6 @@ export function EditProfileDialog({
                   </Button>
                 </div>
 
-                {/* 중복 확인 피드백 상태 메시지 */}
                 {checkMessage && (
                   <div
                     className={`flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-lg transition-all ${
@@ -428,11 +665,6 @@ export function EditProfileDialog({
                     )}
                     <span className="text-[11px] font-medium leading-none">{checkMessage}</span>
                   </div>
-                )}
-                {checkStatus === 'idle' && (
-                  <p className="text-[11px] text-[#8B95A1] pl-1 flex items-center gap-1">
-                    <Info className="w-3 h-3" /> 이름을 변경한 경우 우측 [중복 확인] 버튼을 눌러주세요.
-                  </p>
                 )}
               </div>
 
@@ -475,76 +707,270 @@ export function EditProfileDialog({
             </div>
           )}
 
-          {/* 2. 소셜 링크 탭 */}
+          {/* 2. 소셜 링크 탭 (동적 추가, 수정, 삭제) */}
           {activeTab === 'socials' && (
-            <div className="space-y-4 animate-in fade-in-50 duration-150">
-              <p className="text-xs text-[#8B95A1] leading-relaxed">
-                운영 중인 SNS 채널 및 연락처 주소를 입력하면 프로필 상단에 뱃지로 연동됩니다.
-              </p>
-
-              {/* GitHub */}
-              <div className="space-y-1">
-                <label className="text-xs font-semibold text-[#4E5968] flex items-center gap-1.5">
-                  <GithubIcon className="w-3.5 h-3.5 text-[#191F28]" /> GitHub 주소
-                </label>
-                <Input
-                  value={socials.github}
-                  onChange={(e) => setSocials({ ...socials, github: e.target.value })}
-                  placeholder="https://github.com/username"
-                  className="text-xs h-9 rounded-xl"
-                />
+            <div className="space-y-5 animate-in fade-in-50 duration-150">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-xs font-bold text-[#191F28]">내 소셜 링크 관리</h3>
+                  <p className="text-[11px] text-[#8B95A1] mt-0.5">
+                    원하는 소셜 채널만 자유롭게 추가, 수정, 삭제할 수 있어요.
+                  </p>
+                </div>
+                {!isAddingSocial && (
+                  <Button
+                    type="button"
+                    size="sm"
+                    onClick={() => {
+                      setIsAddingSocial(true);
+                      handleNewPlatformSelect('instagram');
+                    }}
+                    className="h-8 px-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold shadow-xs cursor-pointer flex items-center gap-1"
+                  >
+                    <Plus className="w-3.5 h-3.5" /> 소셜 링크 추가
+                  </Button>
+                )}
               </div>
 
-              {/* Instagram */}
-              <div className="space-y-1">
-                <label className="text-xs font-semibold text-[#4E5968] flex items-center gap-1.5">
-                  <InstagramIcon className="w-3.5 h-3.5 text-pink-600" /> Instagram 주소
-                </label>
-                <Input
-                  value={socials.instagram}
-                  onChange={(e) => setSocials({ ...socials, instagram: e.target.value })}
-                  placeholder="https://instagram.com/username"
-                  className="text-xs h-9 rounded-xl"
-                />
-              </div>
+              {/* 새 소셜 링크 추가 폼 */}
+              {isAddingSocial && (
+                <div className="p-4 rounded-2xl bg-blue-50/60 border border-blue-200/80 space-y-3 animate-in fade-in-50">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-blue-900 flex items-center gap-1.5">
+                      <Plus className="w-3.5 h-3.5 text-blue-600" /> 새 소셜 링크 등록
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setIsAddingSocial(false)}
+                      className="p-1 rounded-md text-gray-400 hover:text-gray-600 cursor-pointer"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
 
-              {/* YouTube */}
-              <div className="space-y-1">
-                <label className="text-xs font-semibold text-[#4E5968] flex items-center gap-1.5">
-                  <YoutubeIcon className="w-3.5 h-3.5 text-red-600" /> YouTube 채널
-                </label>
-                <Input
-                  value={socials.youtube}
-                  onChange={(e) => setSocials({ ...socials, youtube: e.target.value })}
-                  placeholder="https://youtube.com/@channel"
-                  className="text-xs h-9 rounded-xl"
-                />
-              </div>
+                  {/* 플랫폼 선택 */}
+                  <div className="space-y-1">
+                    <label className="text-[11px] font-semibold text-[#4E5968]">플랫폼 선택</label>
+                    <select
+                      value={newPlatform}
+                      onChange={(e) => handleNewPlatformSelect(e.target.value)}
+                      className="w-full h-9 text-xs rounded-xl border border-gray-200 bg-white px-3 font-medium text-[#191F28] focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                    >
+                      {SOCIAL_PLATFORMS.map((p) => (
+                        <option key={p.id} value={p.id}>
+                          {p.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
 
-              {/* Email */}
-              <div className="space-y-1">
-                <label className="text-xs font-semibold text-[#4E5968] flex items-center gap-1.5">
-                  <EmailIcon className="w-3.5 h-3.5 text-blue-500" /> 문의용 이메일 (Email)
-                </label>
-                <Input
-                  value={socials.email}
-                  onChange={(e) => setSocials({ ...socials, email: e.target.value })}
-                  placeholder="name@example.com"
-                  className="text-xs h-9 rounded-xl"
-                />
-              </div>
+                  {/* 표시 라벨 */}
+                  <div className="space-y-1">
+                    <label className="text-[11px] font-semibold text-[#4E5968]">버튼 이름 (라벨)</label>
+                    <Input
+                      value={newLabel}
+                      onChange={(e) => setNewLabel(e.target.value)}
+                      placeholder="예: Instagram, 개발 블로그 등"
+                      className="h-8 text-xs rounded-xl bg-white"
+                    />
+                  </div>
 
-              {/* Blog / Website */}
-              <div className="space-y-1">
-                <label className="text-xs font-semibold text-[#4E5968] flex items-center gap-1.5">
-                  <Link2 className="w-3.5 h-3.5 text-emerald-600" /> 개인 블로그 / 포트폴리오 사이트
-                </label>
-                <Input
-                  value={socials.blog}
-                  onChange={(e) => setSocials({ ...socials, blog: e.target.value })}
-                  placeholder="https://velog.io/@username"
-                  className="text-xs h-9 rounded-xl"
-                />
+                  {/* 주소 (URL/Email) */}
+                  <div className="space-y-1">
+                    <label className="text-[11px] font-semibold text-[#4E5968]">
+                      주소 (URL 또는 이메일)
+                    </label>
+                    <Input
+                      value={newUrl}
+                      onChange={(e) => setNewUrl(e.target.value)}
+                      placeholder={getPlatformMeta(newPlatform).placeholder}
+                      className="h-8 text-xs rounded-xl bg-white"
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          handleAddSocial();
+                        }
+                      }}
+                    />
+                  </div>
+
+                  <div className="flex items-center justify-end gap-2 pt-1">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setIsAddingSocial(false)}
+                      className="h-7 px-3 text-xs rounded-lg cursor-pointer"
+                    >
+                      취소
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      onClick={handleAddSocial}
+                      className="h-7 px-3.5 text-xs rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-semibold cursor-pointer shadow-2xs"
+                    >
+                      추가하기
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              {/* 현재 등록된 소셜 링크 리스트 */}
+              <div className="space-y-2.5">
+                {socialLinks.length === 0 ? (
+                  <div className="p-8 text-center bg-gray-50/80 rounded-2xl border border-gray-100 space-y-2">
+                    <Link2 className="w-8 h-8 text-[#8B95A1] mx-auto opacity-60" />
+                    <p className="text-xs text-[#4E5968] font-semibold">등록된 소셜 링크가 없습니다.</p>
+                    <p className="text-[11px] text-[#8B95A1]">
+                      인스타그램, 유튜브, 블로그, 이메일 등 원하는 링크를 추가해보세요.
+                    </p>
+                    {!isAddingSocial && (
+                      <Button
+                        type="button"
+                        size="sm"
+                        onClick={() => {
+                          setIsAddingSocial(true);
+                          handleNewPlatformSelect('instagram');
+                        }}
+                        className="mt-2 h-8 px-4 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold cursor-pointer"
+                      >
+                        <Plus className="w-3.5 h-3.5 mr-1" /> 지금 링크 추가하기
+                      </Button>
+                    )}
+                  </div>
+                ) : (
+                  socialLinks.map((item) => {
+                    const meta = getPlatformMeta(item.platform);
+                    const isEditing = editingId === item.id;
+
+                    if (isEditing) {
+                      return (
+                        <div
+                          key={item.id}
+                          className="p-3.5 rounded-2xl bg-amber-50/60 border border-amber-200/80 space-y-2.5 animate-in fade-in-50"
+                        >
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs font-bold text-amber-900 flex items-center gap-1.5">
+                              <Pencil className="w-3.5 h-3.5 text-amber-600" /> 소셜 링크 수정
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => setEditingId(null)}
+                              className="p-1 rounded-md text-gray-400 hover:text-gray-600 cursor-pointer"
+                            >
+                              <X className="w-4 h-4" />
+                            </button>
+                          </div>
+
+                          <div className="grid grid-cols-2 gap-2">
+                            <div className="space-y-1">
+                              <label className="text-[10px] font-semibold text-[#4E5968]">플랫폼</label>
+                              <select
+                                value={editPlatform}
+                                onChange={(e) => setEditPlatform(e.target.value)}
+                                className="w-full h-8 text-xs rounded-xl border border-gray-200 bg-white px-2.5 font-medium text-[#191F28]"
+                              >
+                                {SOCIAL_PLATFORMS.map((p) => (
+                                  <option key={p.id} value={p.id}>
+                                    {p.name}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+                            <div className="space-y-1">
+                              <label className="text-[10px] font-semibold text-[#4E5968]">버튼 이름</label>
+                              <Input
+                                value={editLabel}
+                                onChange={(e) => setEditLabel(e.target.value)}
+                                className="h-8 text-xs rounded-xl bg-white"
+                              />
+                            </div>
+                          </div>
+
+                          <div className="space-y-1">
+                            <label className="text-[10px] font-semibold text-[#4E5968]">주소</label>
+                            <Input
+                              value={editUrl}
+                              onChange={(e) => setEditUrl(e.target.value)}
+                              className="h-8 text-xs rounded-xl bg-white"
+                            />
+                          </div>
+
+                          <div className="flex items-center justify-end gap-2 pt-0.5">
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="outline"
+                              onClick={() => setEditingId(null)}
+                              className="h-7 px-3 text-xs rounded-lg cursor-pointer"
+                            >
+                              취소
+                            </Button>
+                            <Button
+                              type="button"
+                              size="sm"
+                              onClick={() => handleSaveEditSocial(item.id)}
+                              className="h-7 px-3.5 text-xs rounded-lg bg-amber-600 hover:bg-amber-700 text-white font-semibold cursor-pointer shadow-2xs"
+                            >
+                              수정 완료
+                            </Button>
+                          </div>
+                        </div>
+                      );
+                    }
+
+                    return (
+                      <div
+                        key={item.id}
+                        className="flex items-center justify-between p-3 bg-gray-50 hover:bg-gray-100/80 border border-gray-100 rounded-2xl transition-all group"
+                      >
+                        <div className="flex items-center gap-2.5 min-w-0 flex-1 pr-2">
+                          <div className="w-8 h-8 rounded-xl bg-white border border-gray-200/80 flex items-center justify-center text-[#191F28] shrink-0 shadow-2xs">
+                            <SocialIcon platform={item.platform} className="w-4 h-4" />
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-xs font-bold text-[#191F28] truncate">
+                                {item.label}
+                              </span>
+                              <span className="text-[10px] font-medium text-[#8B95A1] bg-gray-200/60 px-1.5 py-0.2 rounded-md">
+                                {meta.name}
+                              </span>
+                            </div>
+                            <span className="text-[11px] text-[#8B95A1] truncate block mt-0.5">
+                              {item.url}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* 수정 / 삭제 액션 버튼 */}
+                        <div className="flex items-center gap-1 shrink-0">
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => handleStartEditSocial(item)}
+                            className="h-7 w-7 p-0 rounded-lg text-gray-500 hover:text-blue-600 hover:bg-blue-50 cursor-pointer"
+                            title="수정"
+                          >
+                            <Pencil className="w-3.5 h-3.5" />
+                          </Button>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => handleDeleteSocial(item.id, item.label)}
+                            className="h-7 w-7 p-0 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 cursor-pointer"
+                            title="삭제"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </Button>
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
               </div>
             </div>
           )}

@@ -30,6 +30,11 @@ import { AddLinkDialog } from '@/components/add-link-dialog';
 import { DeleteLinkDialog } from '@/components/delete-link-dialog';
 import { EditProfileDialog } from '@/components/edit-profile-dialog';
 import { ProfileDropdown } from '@/components/profile-dropdown';
+import {
+  SocialIcon,
+  getPlatformMeta,
+  normalizeSocialLinks,
+} from '@/components/social-icons';
 import { toast } from 'sonner';
 import {
   Share2,
@@ -160,6 +165,10 @@ export default function Page() {
           ...storedProfile?.socials,
           ...firestoreProfile.socials,
         },
+        social_links:
+          firestoreProfile.social_links ||
+          storedProfile?.social_links ||
+          undefined,
       };
     }
     return storedProfile ?? defaultProfile;
@@ -544,85 +553,53 @@ export default function Page() {
                 </p>
               </div>
 
-              {/* Social Badges: GitHub + Instagram + YouTube + Email + Blog */}
-              {(profile.socials.github ||
-                profile.socials.instagram ||
-                profile.socials.youtube ||
-                profile.socials.blog ||
-                profile.socials.email ||
-                user.email) && (
-                <div className="flex flex-wrap items-center justify-center gap-2 pt-1">
-                  {profile.socials.github && (
-                    <a
-                      href={
-                        profile.socials.github.startsWith('http')
-                          ? profile.socials.github
-                          : `https://${profile.socials.github}`
+              {/* Dynamic Social Badges: Instagram, YouTube, GitHub, Email, Blog, X, Threads, etc. */}
+              {(() => {
+                const activeSocials = normalizeSocialLinks(
+                  profile.socials,
+                  profile.social_links,
+                  user.email || undefined
+                );
+                if (activeSocials.length === 0) return null;
+
+                return (
+                  <div className="flex flex-wrap items-center justify-center gap-2 pt-1">
+                    {activeSocials.map((item) => {
+                      const meta = getPlatformMeta(item.platform);
+                      const isEmail = item.platform === 'email';
+
+                      if (isEmail) {
+                        return (
+                          <button
+                            key={item.id}
+                            type="button"
+                            onClick={() => setIsEmailModalOpen(true)}
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-blue-50 hover:bg-blue-100/80 text-blue-700 active:scale-95 text-xs font-semibold transition-all cursor-pointer border border-blue-200/60 shadow-2xs"
+                            title="이메일 문의"
+                          >
+                            <SocialIcon platform="email" className="w-3.5 h-3.5" />
+                            <span>{item.label}</span>
+                          </button>
+                        );
                       }
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-gray-100 hover:bg-gray-200/80 active:scale-95 text-xs font-semibold text-[#333D4B] transition-all"
-                    >
-                      <GithubIcon className="w-3.5 h-3.5" />
-                      <span>GitHub</span>
-                    </a>
-                  )}
-                  {profile.socials.instagram && (
-                    <a
-                      href={
-                        profile.socials.instagram.startsWith('http')
-                          ? profile.socials.instagram
-                          : `https://${profile.socials.instagram}`
-                      }
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-pink-50 hover:bg-pink-100/80 text-pink-700 active:scale-95 text-xs font-semibold transition-all"
-                    >
-                      <InstagramIcon className="w-3.5 h-3.5" />
-                      <span>Instagram</span>
-                    </a>
-                  )}
-                  {profile.socials.youtube && (
-                    <a
-                      href={
-                        profile.socials.youtube.startsWith('http')
-                          ? profile.socials.youtube
-                          : `https://${profile.socials.youtube}`
-                      }
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-red-50 hover:bg-red-100/80 text-red-700 active:scale-95 text-xs font-semibold transition-all"
-                    >
-                      <YoutubeIcon className="w-3.5 h-3.5" />
-                      <span>YouTube</span>
-                    </a>
-                  )}
-                  {profile.socials.blog && (
-                    <a
-                      href={
-                        profile.socials.blog.startsWith('http')
-                          ? profile.socials.blog
-                          : `https://${profile.socials.blog}`
-                      }
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-emerald-50 hover:bg-emerald-100/80 text-emerald-700 active:scale-95 text-xs font-semibold transition-all"
-                    >
-                      <Link2 className="w-3.5 h-3.5" />
-                      <span>Blog</span>
-                    </a>
-                  )}
-                  {(profile.socials.email || user.email) && (
-                    <button
-                      onClick={() => setIsEmailModalOpen(true)}
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-gray-100 hover:bg-gray-200/80 active:scale-95 text-xs font-semibold text-[#333D4B] transition-all cursor-pointer"
-                    >
-                      <EmailIcon className="w-3.5 h-3.5" />
-                      <span>Email</span>
-                    </button>
-                  )}
-                </div>
-              )}
+
+                      return (
+                        <a
+                          key={item.id}
+                          href={item.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full active:scale-95 text-xs font-semibold transition-all border shadow-2xs ${meta.badgeBg} ${meta.badgeText} ${meta.badgeBorder || 'border-transparent'}`}
+                          title={item.label}
+                        >
+                          <SocialIcon platform={item.platform} className="w-3.5 h-3.5" />
+                          <span>{item.label}</span>
+                        </a>
+                      );
+                    })}
+                  </div>
+                );
+              })()}
             </section>
 
             {/* ── Link Sections: Section Header + Link Button Cards ── */}

@@ -278,19 +278,37 @@ export async function updateLinkInFirestore(
 }
 
 function cleanProfileData(profile: Profile): Record<string, any> {
+  const cleanSocials: Record<string, string> = {};
+  if (profile.socials && typeof profile.socials === 'object') {
+    for (const [k, v] of Object.entries(profile.socials)) {
+      if (typeof v === 'string' && v.trim() !== '') {
+        cleanSocials[k] = v.trim();
+      }
+    }
+  }
+
+  const cleanSocialLinks = Array.isArray(profile.social_links)
+    ? profile.social_links
+        .filter((item) => item && typeof item.url === 'string' && item.url.trim() !== '')
+        .map((item) => {
+          cleanSocials[item.platform] = item.url.trim();
+          return {
+            id: item.id || `sl_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+            platform: item.platform || 'custom',
+            label: (item.label || item.platform || 'Link').trim(),
+            url: item.url.trim(),
+          };
+        })
+    : undefined;
+
   return {
     username: (profile.username || profile.display_name || '').trim(),
     display_name: (profile.display_name || '').trim(),
     handle: (profile.handle || '').trim(),
     bio: (profile.bio || '').trim(),
     avatar_url: profile.avatar_url || '',
-    socials: {
-      github: profile.socials?.github?.trim() || '',
-      instagram: profile.socials?.instagram?.trim() || '',
-      youtube: profile.socials?.youtube?.trim() || '',
-      email: profile.socials?.email?.trim() || '',
-      blog: profile.socials?.blog?.trim() || '',
-    },
+    socials: cleanSocials,
+    ...(cleanSocialLinks ? { social_links: cleanSocialLinks } : {}),
   };
 }
 
@@ -316,6 +334,7 @@ export async function getUserProfileFromFirestore(userId: string): Promise<Profi
         bio: data.bio || '',
         avatar_url: data.avatar_url || '',
         socials: data.socials || {},
+        social_links: data.social_links || undefined,
       };
       if (foundProfile.bio) return foundProfile;
     }
@@ -336,6 +355,7 @@ export async function getUserProfileFromFirestore(userId: string): Promise<Profi
         bio: data.bio || '',
         avatar_url: data.avatar_url || '',
         socials: data.socials || {},
+        social_links: data.social_links || undefined,
       };
       if (p.bio) return p;
       if (!foundProfile) foundProfile = p;
@@ -357,6 +377,7 @@ export async function getUserProfileFromFirestore(userId: string): Promise<Profi
         bio: data.bio || foundProfile?.bio || '',
         avatar_url: data.avatar_url || data.photoURL || foundProfile?.avatar_url || '',
         socials: data.socials || foundProfile?.socials || {},
+        social_links: data.social_links || foundProfile?.social_links || undefined,
       };
       if (rootProfile.bio || rootProfile.display_name) return rootProfile;
     }
@@ -404,6 +425,7 @@ export async function saveUserProfileToFirestore(userId: string, profile: Profil
         avatar_url: cleaned.avatar_url,
         handle: cleaned.handle,
         socials: cleaned.socials,
+        social_links: cleaned.social_links || [],
         updatedAt: serverTimestamp(),
       },
       { merge: true }
